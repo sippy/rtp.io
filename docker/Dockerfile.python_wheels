@@ -40,11 +40,17 @@ RUN dnf install -y perl perl-core
 
 COPY --exclude=.git --exclude=.github --exclude=docker --exclude=dist \
  --exclude=scripts . .
+COPY ./scripts/build/set_env.sh ./scripts/build/set_env.sh
 
 ENV CCACHE_BIN="/usr/bin/ccache"
 COPY --from=ccache ${CCACHE_BIN} ${CCACHE_BIN}
 ENV CC="${CCACHE_BIN} gcc" CXX="${CCACHE_BIN} g++"
-RUN ${PYTHON_CMD} -m build --wheel
+
+ARG TARGETPLATFORM
+ENV SET_ENV="sh ./scripts/build/set_env.sh platformopts"
+
+RUN env -S "`${SET_ENV}`" \
+ ${PYTHON_CMD} -m build --wheel
 RUN auditwheel repair dist/*.whl --wheel-dir dist_out
 
 RUN ${CCACHE_BIN} --max-size=200M

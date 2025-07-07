@@ -29,8 +29,8 @@ class CustomBuild(build):
     sub_commands = [('build_custom', None)] + build.sub_commands
 
 def main():
-    link_args = ['-O0', '-g3']
-    compile_args = ['-O0', '-g3']
+    link_args = ['-O1', '-g3']
+    compile_args = ['-O1', '-g3']
     compile_args.append('-Ibuild/include')
     for x in link_args, compile_args:
         x.append('-flto')

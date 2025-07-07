@@ -32,9 +32,9 @@ LDFLAGS="-O0 -flto"
 if [ -z "${NO_BUILD_OSSL}" ]
 then
   cd ${MYDIR}/../openssl
-  CFLAGS="${CFLAGS_opt}" LDFLAGS="${LDFLAGS_opt}" ./Configure no-shared no-module no-dso \
-   no-tests no-apps no-unit-test no-quic no-docs --prefix="${BDIR}" --libdir=lib \
-   ${OPENSSL_CONFIGURE_ARGS}
+  CFLAGS="${CFLAGS_opt}" LDFLAGS="${LDFLAGS_opt}" ./Configure ${OPENSSL_CONFIGURE_ARGS} \
+   no-shared no-module no-dso \
+   no-tests no-apps no-unit-test no-quic no-docs --prefix="${BDIR}" --libdir=lib
   make all
   make install_sw
 fi
@@ -47,6 +47,10 @@ LDFLAGS="${LDFLAGS} -L${BDIR}/lib"
 if [ -z "${NO_BUILD_SRTP}" ]
 then
   cd ${MYDIR}/../libsrtp
+  if [ ! -z "${SAVE_SPACE}" ]
+  then
+    rm -rf ${MYDIR}/../openssl
+  fi
   CFLAGS="${CFLAGS_opt}" LDFLAGS="${LDFLAGS_opt}" ./configure \
    --prefix="${BDIR}" --enable-static --disable-shared --enable-openssl \
    --with-openssl-dir="${BDIR}"
@@ -55,6 +59,10 @@ then
 fi
 
 cd ${MYDIR}/../rtpproxy
+if [ ! -z "${SAVE_SPACE}" ]
+then
+  rm -rf ${MYDIR}/../libsrtp
+fi
 
 CFLAGS="${CFLAGS}" LDFLAGS="${LDFLAGS}" ./configure --enable-static-crypto \
  --enable-librtpproxy --enable-lto --enable-noinst=no
