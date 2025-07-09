@@ -7,8 +7,14 @@ platformopts() {
   linux/arm64)
     echo "QEMU_CPU=cortex-a53"
     ;;
+  linux/amd64)
+    echo "CCACHE_COMPRESS=true"
+    echo "CCACHE_MAXSIZE=40M"
+    ;;
   linux/386)
     echo "OPENSSL_CONFIGURE_ARGS=linux-x86"
+    echo "CCACHE_COMPRESS=true"
+    echo "CCACHE_MAXSIZE=40M"
     ;;
   esac
   echo "SAVE_SPACE=yes"
