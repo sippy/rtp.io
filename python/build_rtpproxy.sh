@@ -29,13 +29,31 @@ fi
 LDFLAGS_opt="-O2 -flto"
 LDFLAGS="-O0 -flto"
 
+pv_run() {
+  local LOGFILE="`mktemp`"
+  if ! "${@}" 2>&1 | \
+   pv -fcl -F "%t %b %p" -i 60 2>&1 1>"${LOGFILE}" | tr '\r' '\n' 1>&2
+  then
+    tail -n 200 "${LOGFILE}"
+    rm "${LOGFILE}"
+    return 1
+  fi
+}
+
+if pv -V 2>/dev/null
+then
+  RUN_LOG=pv_run
+else
+  RUL_LOG=""
+fi
+
 if [ -z "${NO_BUILD_OSSL}" ]
 then
   cd ${MYDIR}/../openssl
   CFLAGS="${CFLAGS_opt}" LDFLAGS="${LDFLAGS_opt}" ./Configure ${OPENSSL_CONFIGURE_ARGS} \
    no-shared no-module no-dso \
    no-tests no-apps no-unit-test no-quic no-docs --prefix="${BDIR}" --libdir=lib
-  make all
+  ${RUN_LOG} make all
   make install_sw
 fi
 
@@ -54,7 +72,7 @@ then
   CFLAGS="${CFLAGS_opt}" LDFLAGS="${LDFLAGS_opt}" ./configure \
    --prefix="${BDIR}" --enable-static --disable-shared --enable-openssl \
    --with-openssl-dir="${BDIR}"
-  ${GMAKE} libsrtp2.a
+  ${RUN_LOG} ${GMAKE} libsrtp2.a
   ${GMAKE} install
 fi
 

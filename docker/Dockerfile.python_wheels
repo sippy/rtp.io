@@ -37,6 +37,7 @@ RUN --mount=type=bind,from=buildcache,source=/,target=${TROOT} \
 RUN --mount=type=bind,source=scripts/build,target=scripts/build \
  sh -x scripts/build/install_depends_wheels.sh
 RUN dnf install -y perl perl-core
+RUN dnf install -y pv || true
 
 COPY --exclude=.git --exclude=.github --exclude=docker --exclude=dist \
  --exclude=scripts . .
