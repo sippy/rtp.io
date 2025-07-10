@@ -146,7 +146,7 @@ AC_ARG_ENABLE([static-crypto],
   [ENABLE_STATIC_CRYPTO=no])
 
 if test "$ENABLE_STATIC_CRYPTO" = yes; then
-  LIB_CRYPTO='-l:libcrypto.a'
+  LIB_CRYPTO='-l:libcrypto.a -lpthread'
   LIB_SSL='-l:libssl.a'
   LIB_SRTP2='-l:libsrtp2.a'
 else
@@ -248,7 +248,14 @@ then
   save_LIBS="${LIBS}"
   LIBS="${LIBS} ${LIB_CRYPTO}"
   AC_CHECK_LIB([srtp2], [srtp_protect_mki], [_sp_nargs=3], [_sp_nargs=4])
-  AC_CHECK_LIB(srtp2, srtp_init,[
+  AC_MSG_CHECKING([for srtp_init in -lsrtp2])
+  LIBS="${save_LIBS} ${LIB_SRTP2} ${LIB_CRYPTO}"
+  AC_LINK_IFELSE([AC_LANG_PROGRAM([
+      #include <srtp2/srtp.h>
+    ], [
+      return (int)srtp_init();
+    ])], [
+   AC_MSG_RESULT([yes])
    LIBS_SRTP="${LIB_SRTP2} ${LIB_CRYPTO}"
    # Test program to check if the srtp_protect function accepts size_t* argument
    AC_MSG_CHECKING(['srtp_protect()' last argument type])
@@ -266,10 +273,13 @@ then
      [srtp_protect_lastarg=size_t], [srtp_protect_lastarg=int])
    CFLAGS="$original_cflags"
    AC_MSG_RESULT([$srtp_protect_lastarg])
-   LIBS="${save_LIBS}"
    AC_DEFINE_UNQUOTED([SRTP_PROTECT_LASTARG], [${srtp_protect_lastarg}], [Type of the last argument of the srtp_protect() API])
    AC_DEFINE_UNQUOTED([SRTP_PROTECT_NARGS], [${_sp_nargs}], [Number of srtp_protect() arguments])
-   AC_DEFINE([ENABLE_SRTP2], 1, [Define if you have libsrtp2 library installed])])
+   AC_DEFINE([ENABLE_SRTP2], 1, [Define if you have libsrtp2 library installed])
+  ], [
+   AC_MSG_RESULT([no])
+  ])
+  LIBS="${save_LIBS}"
 else
   # libsrtp
   AC_CHECK_HEADER(srtp/srtp.h, found_libsrtp=yes)
