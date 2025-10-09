@@ -57,6 +57,8 @@ ENV SET_ENV="sh ./scripts/build/set_env.sh platformopts"
 RUN env -S `${SET_ENV}` \
  ${PYTHON_CMD} -m build --wheel
 RUN auditwheel repair dist/*.whl --wheel-dir dist_out
+RUN make -C rtpproxy clean
+RUN rm -rf build/*
 
 RUN ${CCACHE_BIN} --show-stats
 
