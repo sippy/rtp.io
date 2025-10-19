@@ -83,8 +83,6 @@ jobs:
       packages: write
     needs: [build_test_python]
     uses: sippy/cimagic/.github/workflows/BuildPythonWheels.yml@v2
-    with:
-      cache_mode: min
 
   publish_all_wheels:
     name: Publish Python Wheels

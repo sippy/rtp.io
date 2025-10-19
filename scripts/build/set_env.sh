@@ -17,6 +17,10 @@ platformopts() {
     echo "CCACHE_MAXSIZE=40M"
     ;;
   esac
+  if [ -e /opt/rh/gcc-toolset-14/root/usr/lib/gcc/i686-redhat-linux/14/libatomic.a ]
+  then
+    echo "SRTP_LIBS=-L/opt/rh/gcc-toolset-14/root/usr/lib/gcc/i686-redhat-linux/14 -l:libatomic.a"
+  fi
   echo "SAVE_SPACE=yes"
 }
 

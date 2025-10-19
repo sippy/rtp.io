@@ -7,7 +7,7 @@ MYDIR="`dirname ${_SELF}`"
 
 BDIR="${MYDIR}/../build"
 
-if [ "${CC}" = "clang" ]
+if ${CC} -v 2>&1 | grep -q "clang"
 then
   export AR="llvm-ar"
   export RANLIB="llvm-ranlib"
@@ -26,8 +26,8 @@ then
   CFLAGS_opt="${CFLAGS_opt} ${ARCH_CFLAGS}"
   CFLAGS="${CFLAGS} ${ARCH_CFLAGS}"
 fi
-LDFLAGS_opt="-O2 -flto"
-LDFLAGS="-O0 -flto"
+LDFLAGS_opt="-O2 -flto ${LDFLAGS}"
+LDFLAGS="-O0 -flto ${LDFLAGS}"
 
 pv_run() {
   local LOGFILE="`mktemp`"
@@ -69,11 +69,18 @@ then
   then
     rm -rf ${MYDIR}/../openssl
   fi
-  if ! CFLAGS="${CFLAGS_opt}" LDFLAGS="${LDFLAGS_opt}" ./configure \
+  if ! CFLAGS="${CFLAGS_opt}" LDFLAGS="${LDFLAGS_opt}" LIBS="${SRTP_LIBS}" \
+   ./configure \
    --prefix="${BDIR}" --enable-static --disable-shared --enable-openssl \
    --with-openssl-dir="${BDIR}"
   then
-    test -f config.log && tail -n 200 config.log
+    if [ -f config.log ]
+    then
+      if ! grep -B200 'See `config.log. for more details' config.log
+      then
+        tail -n 200 config.log
+      fi
+    fi
     exit 1
   fi
   ${RUN_LOG} ${GMAKE} libsrtp2.a
