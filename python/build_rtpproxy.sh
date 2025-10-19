@@ -69,9 +69,13 @@ then
   then
     rm -rf ${MYDIR}/../openssl
   fi
-  CFLAGS="${CFLAGS_opt}" LDFLAGS="${LDFLAGS_opt}" ./configure \
+  if ! CFLAGS="${CFLAGS_opt}" LDFLAGS="${LDFLAGS_opt}" ./configure \
    --prefix="${BDIR}" --enable-static --disable-shared --enable-openssl \
    --with-openssl-dir="${BDIR}"
+  then
+    test -f config.log && tail -n 200 config.log
+    exit 1
+  fi
   ${RUN_LOG} ${GMAKE} libsrtp2.a
   ${GMAKE} install
 fi
