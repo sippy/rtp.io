@@ -15,6 +15,11 @@ on:
 permissions:
   contents: write
 
+# Cancels previous runs of this workflow for the same PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || startsWith(github.ref_name, 'codex/') || github.ref_name == 'wip' }}
+
 jobs:
   LoadJobs_conf:
     name: Load Jobs Settings
@@ -94,10 +99,19 @@ jobs:
     - name: build
       run: sh -x ./scripts/do-build.sh cleanbuild
 
+  BuildPackages:
+    name: Build Packages
+    needs: [LoadJobs_conf, FullBuild]
+    uses: sippy/cimagic/.github/workflows/BuildDPKGs.yml@v2
+    if: always() && needs.LoadJobs_conf.outputs.do_BuildPackages == 'true'
+    with:
+      apt_depends: pkg-config libssl-dev libbcg729-dev libgsm1-dev libsndfile1-dev libunwind-dev libsrtp2-dev libsystemd-dev systemd procps
+      test_dpkgs_script: ./scripts/do-dpkg-test.sh
+
   FullBuild:
     name: Full Build
     needs: [LoadJobs_conf, MinBuild]
-    if: needs.LoadJobs_conf.outputs.do_FullBuild == 'true'
+    if: always() && needs.LoadJobs_conf.outputs.do_FullBuild == 'true'
     # The type of runner that the job will run on
     runs-on: ubuntu-${{ matrix.os }}
     env:
@@ -170,7 +184,7 @@ jobs:
   FuncTest:
     name: Functional Testing    
     needs: [LoadJobs_conf, FullBuild]
-    if: needs.LoadJobs_conf.outputs.do_FuncTest == 'true'
+    if: always() && needs.LoadJobs_conf.outputs.do_FuncTest == 'true'
     # The type of runner that the job will run on
     runs-on: ubuntu-${{ matrix.os }}
     env:
@@ -243,7 +257,7 @@ jobs:
   Glitching:
     name: Glitch Injection
     needs: [LoadJobs_conf, FuncTest]
-    if: needs.LoadJobs_conf.outputs.do_Glitch == 'true'
+    if: always() && needs.LoadJobs_conf.outputs.do_Glitch == 'true'
     # The type of runner that the job will run on
     runs-on: ubuntu-${{ matrix.os }}
     env:
@@ -316,7 +330,7 @@ jobs:
   Fuzzing:
     name: Fuzz with OSS-Fuzz
     needs: [LoadJobs_conf, Glitching]
-    if: needs.LoadJobs_conf.outputs.do_Fuzzing == 'true'
+    if: always() && needs.LoadJobs_conf.outputs.do_Fuzzing == 'true'
     runs-on: ubuntu-latest
     permissions:
       security-events: write
@@ -365,7 +379,7 @@ jobs:
   Docker:
     name: Build&Push to DockerHub
     needs: [LoadJobs_conf, Fuzzing]
-    if: needs.LoadJobs_conf.outputs.do_Docker == 'true' &&
+    if: always() && needs.LoadJobs_conf.outputs.do_Docker == 'true' &&
         (github.event_name == 'push' || github.event_name == 'pull_request')
     runs-on: ubuntu-latest
     permissions:
@@ -427,7 +441,8 @@ jobs:
         GIT_BRANCH="${GIT_BRANCH#refs/tags/}"
         echo "GIT_BRANCH=${GIT_BRANCH}" >> $GITHUB_ENV
         OS_TAG="`echo ${BASE_IMAGE} | sed 's|:|_|g'`"
-        CCACHE_IMAGE="${{ env.GHCR_REPO }}:${GIT_BRANCH}-${OS_TAG}-cccache"
+        BRANCH_TAG="`echo ${GIT_BRANCH} | sed 's|/|_|g'`"
+        CCACHE_IMAGE="${{ env.GHCR_REPO }}:${BRANCH_TAG}-${OS_TAG}-cccache"
         if ! docker pull ${CCACHE_IMAGE} 2>&1 >/dev/null
         then
           CCACHE_BIMAGE="scratch"
@@ -435,6 +450,7 @@ jobs:
           CCACHE_BIMAGE="${CCACHE_IMAGE}"
         fi
         docker pull ${CCACHE_BIN_IMAGE}
+        echo "BRANCH_TAG=${BRANCH_TAG}" >> $GITHUB_ENV
         echo "CCACHE_IMAGE=${CCACHE_IMAGE}" >> $GITHUB_ENV
         echo "CCACHE_BIMAGE=${CCACHE_BIMAGE}" >> $GITHUB_ENV
         echo "BUILD_IMAGE=${{ env.LOCAL_REPO }}:latest-${OS_TAG}" >> $GITHUB_ENV
@@ -463,12 +479,12 @@ jobs:
       with:
         images: ${{ env.DOCKER_REPO }}
         tags: |
-          type=schedule,suffix=-${{ env.OS_TAG}}
-          type=ref,event=branch,suffix=-${{ env.OS_TAG}}
-          type=ref,event=tag,suffix=-${{ env.OS_TAG}}
-          type=ref,event=pr,suffix=-${{ env.OS_TAG}}
-          type=raw,value=latest-${{ env.OS_TAG}},enable={{is_default_branch}}
-          type=sha,suffix=-${{ env.OS_TAG}}
+          type=schedule,suffix=-${{ env.OS_TAG }}
+          type=ref,event=branch,suffix=-${{ env.OS_TAG }}
+          type=ref,event=tag,suffix=-${{ env.OS_TAG }}
+          type=ref,event=pr,suffix=-${{ env.OS_TAG }}
+          type=raw,value=latest-${{ env.OS_TAG }},enable={{is_default_branch}}
+          type=sha,suffix=-${{ env.OS_TAG }}
           type=raw,value=latest,enable=${{ env.ADD_LATEST == 'true' }}
 
     - name: Extract metadata (tags, labels) for GHCR
@@ -477,18 +493,18 @@ jobs:
       with:
         images: ${{ env.GHCR_REPO }}
         tags: |
-          type=schedule,suffix=-${{ env.OS_TAG}}
-          type=ref,event=branch,suffix=-${{ env.OS_TAG}}
-          type=ref,event=tag,suffix=-${{ env.OS_TAG}}
-          type=ref,event=pr,suffix=-${{ env.OS_TAG}}
-          type=raw,value=latest-${{ env.OS_TAG}},enable={{is_default_branch}}
-          type=sha,suffix=-${{ env.OS_TAG}}
+          type=schedule,suffix=-${{ env.OS_TAG }}
+          type=ref,event=branch,suffix=-${{ env.OS_TAG }}
+          type=ref,event=tag,suffix=-${{ env.OS_TAG }}
+          type=ref,event=pr,suffix=-${{ env.OS_TAG }}
+          type=raw,value=latest-${{ env.OS_TAG }},enable={{is_default_branch}}
+          type=sha,suffix=-${{ env.OS_TAG }}
           type=raw,value=latest,enable=${{ env.ADD_LATEST == 'true' }}
 
     - name: Build Docker image
       uses: docker/build-push-action@v6
       env:
-        CACHE_SPEC: "type=registry,ref=${{ env.GHCR_REPO }}:${{ env.GIT_BRANCH }}-${{ env.OS_TAG}}-buildcache"
+        CACHE_SPEC: "type=registry,ref=${{ env.GHCR_REPO }}:${{ env.BRANCH_TAG }}-${{ env.OS_TAG }}-buildcache"
       with:
         context: .
         file: ./docker/Dockerfile
@@ -543,7 +559,11 @@ jobs:
       run: sh -x docker/update_description.sh docker/README.md
 
   roll_release:
-    needs: [LoadJobs_conf, Docker]
+    name: Roll Release
+    needs: [LoadJobs_conf, Docker, BuildPackages]
     permissions:
       contents: write
-    uses: sippy/cimagic/.github/workflows/RollReleaseDraft.yml@v1
+    uses: sippy/cimagic/.github/workflows/RollReleaseDraft.yml@v2
+    with:
+      release_files_artifacts: |
+        ${{ needs.BuildPackages.outputs.dpkgs_artifacts }}

@@ -6,7 +6,7 @@ set -o pipefail
 
 CC="${CC:-"clang19"}"
 CXX="${CXX:-"${CC}"}"
-CFLAGS="${CFLAGS:-"-g3 -O0 -Wall"}"
+CFLAGS="${CFLAGS:-"-g3 -O1 -Wall"}"
 CXXFLAGS="${CXXFLAGS:-"${CFLAGS}"}"
 OUT="${OUT:-"."}"
 
@@ -28,7 +28,7 @@ install_src_pkg() {
   (head -n 1 debian/rules; \
    echo "export CFLAGS=${CFLAGS}"; \
    echo "export CXXFLAGS=${CXXFLAGS}"; \
-   echo "export RANLIB=llvm-ranlib-${CLANG_VER}"; \
+   echo "export RANLIB=${RANLIB}"; \
    tail -n +2 debian/rules) > debian/_rules
   mv debian/_rules debian/rules
   chmod 755 debian/rules
@@ -54,20 +54,20 @@ install_src_pkg() {
   rm -rf ${TMPDIR}
 }
 
+AR="llvm-ar"
+RANLIB="llvm-ranlib"
+NM="llvm-nm"
+STRIP="llvm-strip"
+
 OS="`uname -s`"
 if [ "${OS}" != "FreeBSD" ]
 then
-  . "docker/clang_ver.sub"
-  CLANG_VER_OLD=1
-  CLANG_VER=18
   APT_INSTALL="apt-get install -y"
   APT_UPDATE="apt-get -y update -qq"
-  #apt-get update
-  install_clang
-  ${APT_INSTALL} file pkg-config llvm-${CLANG_VER} pv
-  ldconfig
   perl -pi -e 's|^# deb-src|deb-src|' /etc/apt/sources.list
   ${APT_UPDATE}
+  ${APT_INSTALL} file pkg-config pv
+  ldconfig
   if [ "${SANITIZER}" != "introspector" ]
   then
     install_src_pkg libssl-dev openssl
@@ -78,10 +78,8 @@ then
   LIBSRTP="-L/usr/lib/x86_64-linux-gnu \
    -Wl,-Bstatic `pkg-config --libs --static libsrtp2` -lssl -lcrypto \
    -Wl,-Bdynamic -lpthread"
-  LLINK_BIN="llvm-link-${CLANG_VER}"
 else
   LIBSRTP="-L/usr/local/lib -lsrtp2 -lssl -lcrypto -lpthread"
-  LLINK_BIN="llvm-link19"
 fi
 
 LD="lld"
@@ -91,9 +89,9 @@ LDFLAGS="-fuse-ld=${LD}"
 CFLAGS="${CFLAGS} -DRTPP_DEBUG_refcnt=1"
 CXXFLAGS="${CXXFLAGS} -DRTPP_DEBUG_refcnt=1"
 
-if ! AR=llvm-ar RANLIB=llvm-ranlib NM=llvm-nm STRIP=llvm-strip \
+if ! AR="${AR}" RANLIB="${RANLIB}" NM="${NM}" STRIP="${STRIP}" \
  LDFLAGS="${LDFLAGS}" CFLAGS="${CFLAGS}" ./configure --enable-librtpproxy \
-  --enable-lto --enable-silent --enable-noinst=no
+  --enable-lto --enable-silent --disable-noinst --disable-debug
 then
   cat config.log
   exit 1
@@ -120,20 +118,17 @@ ALL="command_parser rtp_parser rtcp_parser rtp_session"
 OBJS0="${OBJS}"
 for fz in ${ALL}
 do
-  OBJS="${OBJS0}"
   obj="${OUT}/fuzz_${fz}.o"
   ${CC} ${CFLAGS} ${LIB_FUZZING_ENGINE} -Isrc -Imodules/acct_rtcp_hep \
    -o "${obj}" -c scripts/fuzz/fuzz_${fz}.c
+  OBJS="${OBJS0} ${obj}"
 
   case "${fz}" in
   rtp_parser)
       LIBRTPP="${RTPPLIB}"
-      OBJS="${OBJS} ${obj}"
       ;;
   *)
-      _obj="${OUT}/_fuzz_${fz}.o"
-      ${LLINK_BIN} -o ${_obj} ${obj} ${RTPPLIB}
-      LIBRTPP="${_obj}"
+      LIBRTPP="-Wl,--whole-archive ${RTPPLIB} -Wl,--no-whole-archive"
       ;;
   esac
 
