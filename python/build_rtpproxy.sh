@@ -94,7 +94,7 @@ then
 fi
 
 CFLAGS="${CFLAGS}" LDFLAGS="${LDFLAGS}" ./configure --enable-static-crypto \
- --enable-librtpproxy --enable-lto --enable-noinst=no
+ --enable-librtpproxy --enable-lto --disable-noinst --disable-debug
 for dir in libexecinfo libucl libre external/libelperiodic/src libxxHash modules
 do
   make -C ${dir} all
