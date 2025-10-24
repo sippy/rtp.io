@@ -70,9 +70,7 @@ then
     rm -rf ${MYDIR}/../openssl
   fi
   if ! CFLAGS="${CFLAGS_opt}" LDFLAGS="${LDFLAGS_opt}" LIBS="${SRTP_LIBS}" \
-   ./configure \
-   --prefix="${BDIR}" --enable-static --disable-shared --enable-openssl \
-   --with-openssl-dir="${BDIR}"
+   ./configure --prefix="${BDIR}" --enable-openssl --with-openssl-dir="${BDIR}"
   then
     if [ -f config.log ]
     then
