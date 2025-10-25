@@ -52,7 +52,6 @@ RUN test ! -e ${CCACHE_BIN} || ${CCACHE_BIN} --set-config=hash_dir=false
 RUN test ! -e ${CCACHE_BIN} || ${CCACHE_BIN} --zero-stats
 ENV CC="${CCACHE_BIN} clang" CXX="${CCACHE_BIN} clang++"
 ENV LDFLAGS="-fuse-ld=lld"
-ENV CCACHE_COMPILERCHECK="content"
 
 ARG TARGETPLATFORM
 ENV SET_ENV="sh ./scripts/build/set_env.sh platformopts"
