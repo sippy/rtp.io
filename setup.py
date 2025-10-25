@@ -58,7 +58,7 @@ def main():
 
     setup(
         name='rtp.io',
-        version='1.0',
+        version='1.0.1',
         description='Fast RTPProxy-like RTP handling/processing engine.',
         ext_modules=ext_modules,
         cmdclass={
