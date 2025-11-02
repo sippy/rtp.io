@@ -47,6 +47,22 @@ else
   RUL_LOG=""
 fi
 
+if [ -z "${OPENSSL_CONFIGURE_ARGS}" ]
+then
+  if which rpm > /dev/null
+  then
+    ARCH="`rpm --eval '%{_arch}'`"
+  fi
+  if which dpkg > /dev/null
+  then
+    ARCH="`dpkg --print-architecture`"
+  fi
+  if [ "${ARCH}" == "i386" ]
+  then
+    OPENSSL_CONFIGURE_ARGS="linux-x86"
+  fi
+fi
+
 if [ -z "${NO_BUILD_OSSL}" ]
 then
   cd ${MYDIR}/../openssl
