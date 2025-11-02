@@ -57,7 +57,7 @@ then
   then
     ARCH="`dpkg --print-architecture`"
   fi
-  if [ "${ARCH}" == "i386" ]
+  if [ "${ARCH}" = "i386" ]
   then
     OPENSSL_CONFIGURE_ARGS="linux-x86"
   fi
