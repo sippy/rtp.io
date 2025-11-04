@@ -78,7 +78,7 @@ BASE_SOURCES=main.c rtp.h rtpp_server.c \
   rtpp_sbuf.c rtpp_sbuf.h rtpp_refproxy.c rtpp_command_reply.c
 BASE_SOURCES+=$(ADV_DIR)/packet_observer.h $(ADV_DIR)/pproc_manager.c \
   $(ADV_DIR)/pproc_manager.h
-BASE_SOURCES+=rtpp_modman.c
+BASE_SOURCES+=rtpp_modman.c rtpp_module_if_static.c rtpp_module_if_static.h
 
 rtpproxy_LDADD=librtpproxy.la -lm -lpthread
 rtpproxy_debug_LDADD=-lm -lpthread @LIBS_ELPERIODIC@ $(top_srcdir)/libucl/libucl_debug.la \
@@ -115,7 +115,8 @@ rtpp_objck_BASESOURCES=rtpp_objck.c $(SRCS_AUTOGEN) rtpp_network.c \
   rtpp_pearson_perfect.c rtpp_pearson_perfect.h rtpp_pearson.c rtpp_pearson.h \
   rtpp_time.c rtpp_time.h rtpp_timed.c rtpp_timed.h rtp_packet.c rtp_packet.h \
   rtpp_queue.c rtpp_queue.h rtpp_wi.h rtpp_wi_data.c rtpp_wi_data.h \
-  rtpp_wi_sgnl.c rtpp_wi_sgnl.h rtpp_wi_pkt.c rtpp_wi_pkt.h rtp.c rtp.h
+  rtpp_wi_sgnl.c rtpp_wi_sgnl.h rtpp_wi_pkt.c rtpp_wi_pkt.h rtp.c rtp.h \
+  rtpp_util.c rtpp_util.h
 rtpp_objck_perf_SOURCES=$(rtpp_objck_BASESOURCES) rtpp_refcnt.c rtpp_refcnt.h \
   rtpp_mallocs.c rtpp_mallocs.h
 rtpp_objck_LDADD=$(rtpp_objck_perf_LDADD) $(RTPP_MEMDEB_LDADD)
@@ -183,7 +184,6 @@ librtpproxy_la_SOURCES = $(BASE_SOURCES) $(SRCS_AUTOGEN) \
   rtpp_refcnt.c rtpp_refcnt.h rtpp_mallocs.c rtpp_mallocs.h \
   rtpp_coverage.c rtpp_coverage.h \
   $(top_srcdir)/libucl/libucl.la $(XXH_DIR)/libxxHash.la \
-  rtpp_module_if_static.c rtpp_module_if_static.h \
   librtpp_main.c
 librtpproxy_la_CFLAGS = $(rtpproxy_CFLAGS) -fPIC
 librtpproxy_la_CPPFLAGS = $(rtpproxy_CPPFLAGS) -DLIBRTPPROXY
