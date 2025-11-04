@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
   schedule:
-    - cron: "0 0 * * *"
+    - cron: "0 0 * * 0"
 
 permissions:
   contents: write
@@ -103,7 +103,8 @@ jobs:
     name: Build Packages
     needs: [LoadJobs_conf, FullBuild]
     uses: sippy/cimagic/.github/workflows/BuildDPKGs.yml@v2
-    if: always() && needs.LoadJobs_conf.outputs.do_BuildPackages == 'true'
+    if: always() && needs.LoadJobs_conf.outputs.do_BuildPackages == 'true' &&
+        (needs.LoadJobs_conf.outputs.do_FullBuild != 'true' || needs.FullBuild.result == 'success')
     with:
       apt_depends: pkg-config libssl-dev libbcg729-dev libgsm1-dev libsndfile1-dev libunwind-dev libsrtp2-dev libsystemd-dev systemd procps
       test_dpkgs_script: ./scripts/do-dpkg-test.sh
@@ -111,7 +112,8 @@ jobs:
   FullBuild:
     name: Full Build
     needs: [LoadJobs_conf, MinBuild]
-    if: always() && needs.LoadJobs_conf.outputs.do_FullBuild == 'true'
+    if: always() && needs.LoadJobs_conf.outputs.do_FullBuild == 'true' &&
+        (needs.LoadJobs_conf.outputs.do_MinBuild != 'true' || needs.MinBuild.result == 'success')
     # The type of runner that the job will run on
     runs-on: ubuntu-${{ matrix.os }}
     env:
@@ -184,7 +186,8 @@ jobs:
   FuncTest:
     name: Functional Testing    
     needs: [LoadJobs_conf, FullBuild]
-    if: always() && needs.LoadJobs_conf.outputs.do_FuncTest == 'true'
+    if: always() && needs.LoadJobs_conf.outputs.do_FuncTest == 'true' &&
+        (needs.LoadJobs_conf.outputs.do_FullBuild != 'true' || needs.FullBuild.result == 'success')
     # The type of runner that the job will run on
     runs-on: ubuntu-${{ matrix.os }}
     env:
@@ -257,7 +260,8 @@ jobs:
   Glitching:
     name: Glitch Injection
     needs: [LoadJobs_conf, FuncTest]
-    if: always() && needs.LoadJobs_conf.outputs.do_Glitch == 'true'
+    if: always() && needs.LoadJobs_conf.outputs.do_Glitch == 'true' &&
+        (needs.LoadJobs_conf.outputs.do_FuncTest != 'true' || needs.FuncTest.result == 'success')
     # The type of runner that the job will run on
     runs-on: ubuntu-${{ matrix.os }}
     env:
@@ -330,7 +334,8 @@ jobs:
   Fuzzing:
     name: Fuzz with OSS-Fuzz
     needs: [LoadJobs_conf, Glitching]
-    if: always() && needs.LoadJobs_conf.outputs.do_Fuzzing == 'true'
+    if: always() && needs.LoadJobs_conf.outputs.do_Fuzzing == 'true' &&
+        (needs.LoadJobs_conf.outputs.do_Glitch != 'true' || needs.Glitching.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       security-events: write
@@ -380,6 +385,7 @@ jobs:
     name: Build&Push to DockerHub
     needs: [LoadJobs_conf, Fuzzing]
     if: always() && needs.LoadJobs_conf.outputs.do_Docker == 'true' &&
+        (needs.LoadJobs_conf.outputs.do_Fuzzing != 'true' || needs.Fuzzing.result == 'success') &&
         (github.event_name == 'push' || github.event_name == 'pull_request')
     runs-on: ubuntu-latest
     permissions:
@@ -390,8 +396,8 @@ jobs:
         ports:
           - 5000:5000
     env:
-      CLANG_VER_NEW: 18
-      CLANG_VER_OLD: 16
+      CLANG_VER_NEW: 19
+      CLANG_VER_OLD: 19
       DOCKER_REPO: sippylabs/rtpproxy
       GHCR_REPO: ghcr.io/${{ github.repository_owner }}/rtpproxy
       LOCAL_REPO: localhost:5000/sippylabs/rtpproxy
@@ -400,10 +406,13 @@ jobs:
       DOCKER_RW: ${{ ( github.repository == 'sippy/rtpproxy' && github.event_name != 'pull_request' ) && 'true' || 'false' }}
       CCACHE_BIN_IMAGE: ghcr.io/sobomax/ccache:${{ matrix.ccache_bin_image }}
     strategy:
+      fail-fast: false
       matrix:
         include:
         - base_image: 'debian:12-slim'
           ccache_bin_image: 'latest-debian-12'
+        - base_image: 'debian:13-slim'
+          ccache_bin_image: 'latest-debian-13'
         - base_image: 'ubuntu:latest'
           ccache_bin_image: 'latest-ubuntu-24.04'
     steps:
@@ -460,7 +469,7 @@ jobs:
          grep -v unknown | sort -u | paste -sd ','`"
         echo "PLATFORMS=${PLATFORMS}" >> $GITHUB_ENV
         echo "OS_TAG=${OS_TAG}" >> $GITHUB_ENV
-        if [[ "${{ matrix.base_image }}" == debian:* ]]
+        if [[ "${{ matrix.base_image }}" == debian:12* ]]
         then
           echo "LIBSSL_APKG=libssl3" >> $GITHUB_ENV
         else
@@ -505,6 +514,8 @@ jobs:
       uses: docker/build-push-action@v6
       env:
         CACHE_SPEC: "type=registry,ref=${{ env.GHCR_REPO }}:${{ env.BRANCH_TAG }}-${{ env.OS_TAG }}-buildcache"
+        DOCKER_BUILD_SUMMARY: false
+        DOCKER_BUILD_RECORD_UPLOAD: false
       with:
         context: .
         file: ./docker/Dockerfile
@@ -526,6 +537,9 @@ jobs:
     - name: Export ccache
       if: env.DOCKER_RW == 'true'
       uses: docker/build-push-action@v6
+      env:
+        DOCKER_BUILD_SUMMARY: false
+        DOCKER_BUILD_RECORD_UPLOAD: false
       with:
         file: ./docker/Dockerfile.export_ccache
         build-args: BUILD_IMAGE=${{ env.BUILD_IMAGE }}
@@ -536,6 +550,9 @@ jobs:
     - name: Push Docker image
       if: env.DOCKER_RW == 'true'
       uses: docker/build-push-action@v6
+      env:
+        DOCKER_BUILD_SUMMARY: false
+        DOCKER_BUILD_RECORD_UPLOAD: false
       with:
         context: .
         file: ./docker/Dockerfile.push

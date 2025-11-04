@@ -24,8 +24,33 @@ install_clang() {
   fi
   ${APT_INSTALL} curl gpg lsb-release
   MYREL="`lsb_release -c | grep ^Codename | awk '{print $2}'`"
-  echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/${MYREL}/ llvm-toolchain-${MYREL}-${CLANG_VER} main" > /etc/apt/sources.list.d/llvm.list
-  curl https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor > /usr/share/keyrings/llvm.gpg
-  ${APT_UPDATE}
+  if [ "${MYREL}" = "trixie" ]
+  then
+    curl -o /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+    bash /tmp/llvm.sh ${CLANG_VER}
+  else
+    echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/${MYREL}/ llvm-toolchain-${MYREL}-${CLANG_VER} main" > /etc/apt/sources.list.d/llvm.list
+    curl https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor > /usr/share/keyrings/llvm.gpg
+    ${APT_UPDATE}
+  fi
   apt-mark hold ca-certificates
+}
+
+get_cc_ver() {
+  CC_v="`${CC} -v 2>&1`"
+  if [ "${?}" -ne 0 -o ! -n "${CC_v}" ]
+  then
+    exit 1
+  fi
+  CC_dm="`${CC} -dumpmachine 2>&1`"
+  if [ "${?}" -ne 0 -o ! -n "${CC_dm}" ]
+  then
+    exit 1
+  fi
+  CC_dv="`${CC} -dumpversion 2>&1`"
+  if [ "${?}" -ne 0 -o ! -n "${CC_dv}" ]
+  then
+    exit 1
+  fi
+  echo "${CC_v}${CC_dm}${CC_dv}" | md5sum | awk '{print $1}'
 }
