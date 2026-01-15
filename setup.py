@@ -43,6 +43,8 @@ def main():
         '-Lbuild/lib',
         '-l:libsrtp2.a', '-l:libssl.a', '-l:libcrypto.a',
     ])
+    if 'SRTP_LIBS' in environ:
+        link_args.extend(environ['SRTP_LIBS'].split())
     ext_modules = [
         Extension(
             'rtp.io',

@@ -60,6 +60,12 @@ then
   if [ "${ARCH}" = "i386" ]
   then
     OPENSSL_CONFIGURE_ARGS="linux-x86"
+    if [ -z "${SRTP_LIBS}" ]
+    then
+      export LIB_CRYPTO_STATIC="-l:libcrypto.a -lpthread -latomic"
+    else
+      export LIB_CRYPTO_STATIC="-l:libcrypto.a -lpthread ${SRTP_LIBS}"
+    fi
   fi
 fi
 
@@ -109,6 +115,11 @@ fi
 
 CFLAGS="${CFLAGS}" LDFLAGS="${LDFLAGS}" ./configure --enable-static-crypto \
  --enable-librtpproxy --enable-lto --disable-noinst --disable-debug
+if ! grep -q '^#define ENABLE_SRTP2 1' src/config.h
+then
+  grep -C 200 lsrtp2 config.log
+  exit 1
+fi
 for dir in libexecinfo libucl libre external/libelperiodic/src libxxHash modules
 do
   make -C ${dir} all
