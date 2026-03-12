@@ -68,12 +68,15 @@ Encryption options:
 [B<-recip> I<file>]
 [I<recipient-cert> ...]
 [B<-I<cipher>>]
+[B<-kekcipher> I<cipher>]
 [B<-wrap> I<cipher>]
 [B<-aes128-wrap>]
 [B<-aes192-wrap>]
 [B<-aes256-wrap>]
 [B<-des3-wrap>]
 [B<-debug_decrypt>]
+[B<-recip_kdf> I<kdf>]
+[B<-recip_ukm> I<ukm>]
 
 Signing options:
 
@@ -424,7 +427,14 @@ Currently, the AES variants with GCM mode are the only supported AEAD
 algorithms.
 
 If not specified, AES-256-CBC is used as the default. Only used with B<-encrypt> and
-B<-EncryptedData_create> commands.
+B<-EncryptedData_encrypt> commands.
+
+=item B<-kekcipher> I<cipher>
+
+Cipher algorithm to use for password key encryption. This option is relevant
+when a password for password recipient information is provided using
+B<-pwri_password>, and an AEAD encryption algorithm is selected. In such cases,
+a non-AEAD algorithm should be specified using this option.
 
 =item B<-wrap> I<cipher>
 
@@ -442,6 +452,19 @@ Depending on the OpenSSL build options used, B<-des3-wrap> may not be supported.
 This option sets the B<CMS_DEBUG_DECRYPT> flag. This option should be used
 with caution: see the notes section below.
 
+=item B<-recip_kdf>
+
+This option sets the KDF used to generate the key encryption key in the
+B<KEMRecipientInfo> type. Any KDF that takes B<OSSL_KDF_PARAM_KEY> and
+B<OSSL_KDF_PARAM_INFO> parameters and is otherwise fully defined by its name or
+OID can be used, for example B<HKDF-SHA256>.
+
+=item B<-recip_ukm>
+
+This option sets the B<KEMRecipientInfo> type's optional user keying material (UKM)
+in hexadecimal form. The UKM will be encoded, along with other information, into the
+B<OSSL_KDF_PARAM_INFO> parameter of the B<KEMRecipientInfo> type's KDF.
+
 =back
 
 =head2 Signing options
@@ -451,7 +474,7 @@ with caution: see the notes section below.
 =item B<-md> I<digest>
 
 Digest algorithm to use when signing or resigning. If not present then the
-default digest algorithm for the signing key will be used (usually SHA1).
+default digest algorithm for the signing key will be used (usually SHA-256).
 
 =item B<-signer> I<file>
 
@@ -784,7 +807,7 @@ The use of PSS with B<-sign>.
 
 The use of OAEP or non-RSA keys with B<-encrypt>.
 
-Additionally the B<-EncryptedData_create> and B<-data_create> type cannot
+Additionally the B<-EncryptedData_encrypt> and B<-data_create> type cannot
 be processed by the older L<openssl-smime(1)> command.
 
 =head1 EXAMPLES
@@ -929,9 +952,11 @@ The B<-engine> option was deprecated in OpenSSL 3.0.
 
 The B<-digest> option was added in OpenSSL 3.2.
 
+The B<-recip_kdf> and B<-recip_ukm> options were added in OpenSSL 3.6.
+
 =head1 COPYRIGHT
 
-Copyright 2008-2025 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2008-2026 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

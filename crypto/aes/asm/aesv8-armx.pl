@@ -8,10 +8,10 @@
 
 #
 # ====================================================================
-# Written by Andy Polyakov <appro@openssl.org> for the OpenSSL
+# Written by Andy Polyakov, @dot-asm, initially for use in the OpenSSL
 # project. The module is, however, dual licensed under OpenSSL and
 # CRYPTOGAMS licenses depending on where you obtain it. For further
-# details see http://www.openssl.org/~appro/cryptogams/.
+# details see https://github.com/dot-asm/cryptogams/.
 # ====================================================================
 #
 # This module implements support for ARMv8 AES instructions. The
@@ -152,7 +152,7 @@ $code.=<<___	if ($flavour =~ /64/);
 	adrp	$ptr,.Lrcon
 	add	$ptr,$ptr,:lo12:.Lrcon
 ___
-$code.=<<___	if ($flavour =~ /32/);
+$code.=<<___	if ($flavour !~ /64/);
 	adr	$ptr,.Lrcon
 ___
 $code.=<<___;

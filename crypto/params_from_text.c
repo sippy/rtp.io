@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2024 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2025 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright (c) 2019, Oracle and/or its affiliates.  All rights reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
@@ -23,10 +23,10 @@
  */
 
 static int prepare_from_text(const OSSL_PARAM *paramdefs, const char *key,
-                             const char *value, size_t value_n,
-                             /* Output parameters */
-                             const OSSL_PARAM **paramdef, int *ishex,
-                             size_t *buf_n, BIGNUM **tmpbn, int *found)
+    const char *value, size_t value_n,
+    /* Output parameters */
+    const OSSL_PARAM **paramdef, int *ishex,
+    size_t *buf_n, BIGNUM **tmpbn, int *found)
 {
     const OSSL_PARAM *p;
     size_t buf_bits;
@@ -133,8 +133,8 @@ static int prepare_from_text(const OSSL_PARAM *paramdefs, const char *key,
 }
 
 static int construct_from_text(OSSL_PARAM *to, const OSSL_PARAM *paramdef,
-                               const char *value, size_t value_n, int ishex,
-                               void *buf, size_t buf_n, BIGNUM *tmpbn)
+    const char *value, size_t value_n, int ishex,
+    void *buf, size_t buf_n, BIGNUM *tmpbn)
 {
     if (buf == NULL)
         return 0;
@@ -151,7 +151,7 @@ static int construct_from_text(OSSL_PARAM *to, const OSSL_PARAM *paramdef,
                 }
             */
 
-            BN_bn2nativepad(tmpbn, buf, buf_n);
+            BN_bn2nativepad(tmpbn, buf, (int)buf_n);
 
             /*
              * 2's complement negation, part two.
@@ -199,7 +199,7 @@ static int construct_from_text(OSSL_PARAM *to, const OSSL_PARAM *paramdef,
 }
 
 /**
- * OSSL_PARAM_print_to_bio - Print OSSL_PARAM array to a bio 
+ * OSSL_PARAM_print_to_bio - Print OSSL_PARAM array to a bio
  *
  * @p:        Array of OSSL_PARAM structures containing keys and values.
  * @bio:      Pointer to bio where the formatted output will be written.
@@ -220,9 +220,9 @@ int OSSL_PARAM_print_to_bio(const OSSL_PARAM *p, BIO *bio, int print_values)
     BIGNUM *bn;
 #ifndef OPENSSL_SYS_UEFI
     double d;
+    int dok;
 #endif
     int ok = -1;
-    int dok;
 
     /*
      * Iterate through each key in the array printing its key and value
@@ -271,28 +271,28 @@ int OSSL_PARAM_print_to_bio(const OSSL_PARAM *p, BIO *bio, int print_values)
             }
             break;
         case OSSL_PARAM_UTF8_PTR:
-            ok = BIO_dump(bio, p->data, p->data_size);
+            ok = BIO_dump(bio, p->data, (int)p->data_size);
             break;
         case OSSL_PARAM_UTF8_STRING:
-            ok = BIO_dump(bio, (char *)p->data, p->data_size);
+            ok = BIO_dump(bio, (char *)p->data, (int)p->data_size);
             break;
         case OSSL_PARAM_OCTET_PTR:
         case OSSL_PARAM_OCTET_STRING:
-            ok = BIO_dump(bio, (char *)p->data, p->data_size);
+            ok = BIO_dump(bio, (char *)p->data, (int)p->data_size);
             break;
+#ifndef OPENSSL_SYS_UEFI
         case OSSL_PARAM_REAL:
             dok = 0;
-#ifndef OPENSSL_SYS_UEFI
             dok = OSSL_PARAM_get_double(p, &d);
-#endif
             if (dok == 1)
                 ok = BIO_printf(bio, "%f\n", d);
             else
                 ok = BIO_printf(bio, "error getting value\n");
             break;
+#endif
         default:
             ok = BIO_printf(bio, "unknown type (%u) of %zu bytes\n",
-                            p->data_type, p->data_size);
+                p->data_type, p->data_size);
             break;
         }
         if (ok == -1)
@@ -304,9 +304,9 @@ end:
 }
 
 int OSSL_PARAM_allocate_from_text(OSSL_PARAM *to,
-                                  const OSSL_PARAM *paramdefs,
-                                  const char *key, const char *value,
-                                  size_t value_n, int *found)
+    const OSSL_PARAM *paramdefs,
+    const char *key, const char *value,
+    size_t value_n, int *found)
 {
     const OSSL_PARAM *paramdef = NULL;
     int ishex = 0;
@@ -319,19 +319,19 @@ int OSSL_PARAM_allocate_from_text(OSSL_PARAM *to,
         return 0;
 
     if (!prepare_from_text(paramdefs, key, value, value_n,
-                           &paramdef, &ishex, &buf_n, &tmpbn, found))
+            &paramdef, &ishex, &buf_n, &tmpbn, found))
         goto err;
 
     if ((buf = OPENSSL_zalloc(buf_n > 0 ? buf_n : 1)) == NULL)
         goto err;
 
     ok = construct_from_text(to, paramdef, value, value_n, ishex,
-                             buf, buf_n, tmpbn);
+        buf, buf_n, tmpbn);
     BN_free(tmpbn);
     if (!ok)
         OPENSSL_free(buf);
     return ok;
- err:
+err:
     BN_free(tmpbn);
     return 0;
 }

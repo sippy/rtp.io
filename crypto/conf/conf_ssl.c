@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2015-2025 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -68,8 +68,7 @@ static int ssl_module_init(CONF_IMODULE *md, const CONF *cnf)
     ssl_conf_section = CONF_imodule_get_value(md);
     cmd_lists = NCONF_get_section(cnf, ssl_conf_section);
     if (sk_CONF_VALUE_num(cmd_lists) <= 0) {
-        int rcode =
-            cmd_lists == NULL
+        int rcode = cmd_lists == NULL
             ? CONF_R_SSL_SECTION_NOT_FOUND
             : CONF_R_SSL_SECTION_EMPTY;
 
@@ -78,7 +77,7 @@ static int ssl_module_init(CONF_IMODULE *md, const CONF *cnf)
     }
     cnt = sk_CONF_VALUE_num(cmd_lists);
     ssl_module_free(md);
-    ssl_names = OPENSSL_zalloc(sizeof(*ssl_names) * cnt);
+    ssl_names = OPENSSL_calloc(cnt, sizeof(*ssl_names));
     if (ssl_names == NULL)
         goto err;
     ssl_names_count = cnt;
@@ -88,20 +87,19 @@ static int ssl_module_init(CONF_IMODULE *md, const CONF *cnf)
         STACK_OF(CONF_VALUE) *cmds = NCONF_get_section(cnf, sect->value);
 
         if (sk_CONF_VALUE_num(cmds) <= 0) {
-            int rcode =
-                cmds == NULL
+            int rcode = cmds == NULL
                 ? CONF_R_SSL_COMMAND_SECTION_NOT_FOUND
                 : CONF_R_SSL_COMMAND_SECTION_EMPTY;
 
             ERR_raise_data(ERR_LIB_CONF, rcode,
-                           "name=%s, value=%s", sect->name, sect->value);
+                "name=%s, value=%s", sect->name, sect->value);
             goto err;
         }
         ssl_name->name = OPENSSL_strdup(sect->name);
         if (ssl_name->name == NULL)
             goto err;
         cnt = sk_CONF_VALUE_num(cmds);
-        ssl_name->cmds = OPENSSL_zalloc(cnt * sizeof(struct ssl_conf_cmd_st));
+        ssl_name->cmds = OPENSSL_calloc(cnt, sizeof(struct ssl_conf_cmd_st));
         if (ssl_name->cmds == NULL)
             goto err;
         ssl_name->cmd_count = cnt;
@@ -121,10 +119,9 @@ static int ssl_module_init(CONF_IMODULE *md, const CONF *cnf)
             if (cmd->cmd == NULL || cmd->arg == NULL)
                 goto err;
         }
-
     }
     rv = 1;
- err:
+err:
     if (rv == 0)
         ssl_module_free(md);
     return rv;
@@ -170,7 +167,7 @@ int conf_ssl_name_find(const char *name, size_t *idx)
  * argument is returned in |*arg|.
  */
 void conf_ssl_get_cmd(const SSL_CONF_CMD *cmd, size_t idx, char **cmdstr,
-                      char **arg)
+    char **arg)
 {
     *cmdstr = cmd[idx].cmd;
     *arg = cmd[idx].arg;
