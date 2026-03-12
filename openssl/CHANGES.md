@@ -12,6 +12,7 @@ appropriate release branch.
 OpenSSL Releases
 ----------------
 
+ - [OpenSSL 3.6](#openssl-36)
  - [OpenSSL 3.5](#openssl-35)
  - [OpenSSL 3.4](#openssl-34)
  - [OpenSSL 3.3](#openssl-33)
@@ -25,8 +26,635 @@ OpenSSL Releases
  - [OpenSSL 1.0.0](#openssl-100)
  - [OpenSSL 0.9.x](#openssl-09x)
 
+OpenSSL 3.6
+-----------
+
+### Changes between 3.6.0 and 3.6.1 [27 Jan 2026]
+
+ * Fixed Improper validation of PBMAC1 parameters in PKCS#12 MAC verification.
+
+   Severity: Moderate
+
+   Issue summary: PBMAC1 parameters in PKCS#12 files are missing validation
+   which can trigger a stack-based buffer overflow, invalid pointer or NULL
+   pointer dereference during MAC verification.
+
+   Impact summary: The stack buffer overflow or NULL pointer dereference may
+   cause a crash leading to Denial of Service for an application that parses
+   untrusted PKCS#12 files. The buffer overflow may also potentially enable
+   code execution depending on platform mitigations.
+
+   Reported by: Stanislav Fort (Aisle Research) and Petr Šimeček (Aisle
+   Research) and Hamza (Metadust)
+
+   ([CVE-2025-11187])
+
+   *Tomáš Mráz*
+
+ * Fixed Stack buffer overflow in CMS `AuthEnvelopedData` parsing.
+
+   Severity: High
+
+   Issue summary: Parsing CMS `AuthEnvelopedData` message with maliciously
+   crafted AEAD parameters can trigger a stack buffer overflow.
+
+   Impact summary: A stack buffer overflow may lead to a crash, causing Denial
+   of Service, or potentially remote code execution.
+
+   Reported by: Stanislav Fort (Aisle Research)
+
+   ([CVE-2025-15467])
+
+   *Igor Ustinov*
+
+ * Fixed NULL dereference in `SSL_CIPHER_find()` function on unknown cipher ID.
+
+   Severity: Low
+
+   Issue summary: If an application using the `SSL_CIPHER_find()` function
+   in a QUIC protocol client or server receives an unknown cipher suite from
+   the peer, a NULL dereference occurs.
+
+   Impact summary: A NULL pointer dereference leads to abnormal termination
+   of the running process causing Denial of Service.
+
+   Reported by: Stanislav Fort (Aisle Research)
+
+   ([CVE-2025-15468])
+
+   *Stanislav Fort*
+
+ * Fixed `openssl dgst` one-shot codepath silently truncates inputs >16 MiB.
+
+   Severity: Low
+
+   Issue summary: The `openssl dgst` command-line tool silently truncates input
+   data to 16 MiB when using one-shot signing algorithms and reports success
+   instead of an error.
+
+   Impact summary: A user signing or verifying files larger than 16 MiB with
+   one-shot algorithms (such as Ed25519, Ed448, or ML-DSA) may believe the
+   entire file is authenticated while trailing data beyond 16 MiB remains
+   unauthenticated.
+
+   Reported by: Stanislav Fort (Aisle Research)
+
+   ([CVE-2025-15469])
+
+   *Viktor Dukhovni*
+
+ * Fixed TLS 1.3 `CompressedCertificate` excessive memory allocation.
+
+   Severity: Low
+
+   Issue summary: A TLS 1.3 connection using certificate compression can be
+   forced to allocate a large buffer before decompression without checking
+   against the configured certificate size limit.
+
+   Impact summary: An attacker can cause per-connection memory allocations
+   of up to approximately 22 MiB and extra CPU work, potentially leading
+   to service degradation or resource exhaustion (Denial of Service).
+
+   Reported by: Tomas Dulka (Aisle Research) and Stanislav Fort (Aisle
+   Research)
+
+   ([CVE-2025-66199])
+
+   *Tomas Dulka and Stanislav Fort*
+
+ * Fixed Heap out-of-bounds write in `BIO_f_linebuffer` on short writes.
+
+   Severity: Low
+
+   Issue summary: Writing large, newline-free data into a BIO chain using the
+   line-buffering filter where the next BIO performs short writes can trigger
+   a heap-based out-of-bounds write.
+
+   Impact summary: This out-of-bounds write can cause memory corruption
+   which typically results in a crash, leading to Denial of Service for
+   an application.
+
+   Reported by: Petr Simecek (Aisle Research) and Stanislav Fort (Aisle
+   Research)
+
+   ([CVE-2025-68160])
+
+   *Stanislav Fort and Neil Horman*
+
+ * Fixed Unauthenticated/unencrypted trailing bytes with low-level OCB
+   function calls.
+
+   Severity: Low
+
+   Issue summary: When using the low-level OCB API directly with AES-NI or
+   other hardware-accelerated code paths, inputs whose length is not a multiple
+   of 16 bytes can leave the final partial block unencrypted and
+   unauthenticated.
+
+   Impact summary: The trailing 1-15 bytes of a message may be exposed in
+   cleartext on encryption and are not covered by the authentication tag,
+   allowing an attacker to read or tamper with those bytes without detection.
+
+   Reported by: Stanislav Fort (Aisle Research)
+
+   ([CVE-2025-69418])
+
+   *Stanislav Fort*
+
+ * Fixed Out of bounds write in `PKCS12_get_friendlyname()` UTF-8 conversion.
+
+   Severity: Low
+
+   Issue summary: Calling `PKCS12_get_friendlyname()` function on a maliciously
+   crafted PKCS#12 file with a `BMPString` (UTF-16BE) friendly name containing
+   non-ASCII BMP code point can trigger a one byte write before the allocated
+   buffer.
+
+   Impact summary: The out-of-bounds write can cause a memory corruption
+   which can have various consequences including a Denial of Service.
+
+   Reported by: Stanislav Fort (Aisle Research)
+
+   ([CVE-2025-69419])
+
+   *Norbert Pócs*
+
+ * Fixed Missing `ASN1_TYPE` validation in `TS_RESP_verify_response()` function.
+
+   Severity: Low
+
+   Issue summary: A type confusion vulnerability exists in the TimeStamp
+   Response verification code where an `ASN1_TYPE` union member is accessed
+   without first validating the type, causing an invalid or NULL pointer
+   dereference when processing a malformed `TimeStamp` Response file.
+
+   Impact summary: An application calling `TS_RESP_verify_response()`
+   with a malformed TimeStamp Response can be caused to dereference an invalid
+   or NULL pointer when reading, resulting in a Denial of Service.
+
+   Reported by: Luigino Camastra (Aisle Research)
+
+   ([CVE-2025-69420])
+
+   *Bob Beck*
+
+ * Fixed NULL Pointer Dereference in `PKCS12_item_decrypt_d2i_ex()` function.
+
+   Severity: Low
+
+   Issue summary: Processing a malformed PKCS#12 file can trigger a NULL
+   pointer dereference in the `PKCS12_item_decrypt_d2i_ex()` function.
+
+   Impact summary: A NULL pointer dereference can trigger a crash which leads
+   to Denial of Service for an application processing PKCS#12 files.
+
+   Reported by: Luigino Camastra (Aisle Research)
+
+   ([CVE-2025-69421])
+
+   *Luigino Camastra*
+
+ * Fixed Missing `ASN1_TYPE` validation in PKCS#12 parsing.
+
+   Severity: Low
+
+   Issue summary: An invalid or NULL pointer dereference can happen in
+   an application processing a malformed PKCS#12 file.
+
+   Impact summary: An application processing a malformed PKCS#12 file can be
+   caused to dereference an invalid or NULL pointer on memory read, resulting
+   in a Denial of Service.
+
+   Reported by: Luigino Camastra (Aisle Research)
+
+   ([CVE-2026-22795])
+
+   *Bob Beck*
+
+ * Fixed `ASN1_TYPE` Type Confusion in the `PKCS7_digest_from_attributes()`
+   function.
+
+   Severity: Low
+
+   Issue summary: A type confusion vulnerability exists in the signature
+   verification of signed PKCS#7 data where an `ASN1_TYPE` union member
+   is accessed without first validating the type, causing an invalid or NULL
+   pointer dereference when processing malformed PKCS#7 data.
+
+   Impact summary: An application performing signature verification of PKCS#7
+   data or calling directly the `PKCS7_digest_from_attributes()` function can be
+   caused to dereference an invalid or NULL pointer when reading, resulting in
+   a Denial of Service.
+
+   Reported by: Luigino Camastra (Aisle Research)
+
+   ([CVE-2026-22796])
+
+   *Bob Beck*
+
+ * RISC-V capabilities string format has changed to include the base
+   architecture and the vector length for the V extension.
+   <!-- https://github.com/openssl/openssl/pull/28760 -->
+
+   *Bernd Edlinger*
+
+ * Fixed a regression in `X509_V_FLAG_CRL_CHECK_ALL` flag handling by restoring
+   its pre-3.6.0 behaviour of being ignored when `X509_V_FLAG_CRL_CHECK` flag
+   is not set, and no longer implying the latter flag instead.
+   <!-- https://github.com/openssl/openssl/pull/28797 -->
+
+   *Carter Thaxton*
+
+ * Fixed a regression that caused generation of empty stapled OCSP responses
+   when at least one certificate in the certificate chain had a stapled OCSP
+   response present, causing handshake failures for OpenSSL 3.6.0 servers
+   with various client implementations, including GnuTLS and BoringSSL.
+   <!-- https://github.com/openssl/openssl/pull/28955 -->
+
+   *Martin Rauch*
+
+ * Fixed exit code of `openssl x509` command with `-checkend` option in use.
+   <!-- https://github.com/openssl/openssl/pull/29155 -->
+
+   *Stefan Rieche*
+
+ * Fixed incorrect acceptance of some malformed ECDSA signatures on s390x.
+   <!-- https://github.com/openssl/openssl/pull/29214 -->
+
+   *Holger Dengler*
+
+ * Source code has been reformatted with `clang-format`.
+   <!-- https://github.com/openssl/openssl/pull/29245 -->
+
+   *Bob Beck*
+
+ * Reverted a change in behaviour of the single stapled OCSP response API
+   with respect to the ownership of the OCSP response object that caused
+   a memory leak.
+   <!-- https://github.com/openssl/openssl/pull/29251 -->
+
+   *Remi Gacogne and Tomáš Mráz*
+
+### Changes between 3.5 and 3.6.0 [1 Oct 2025]
+
+ * Added support for `EVP_SKEY` opaque symmetric key objects to the key
+   derivation and key exchange provider methods.  Added
+   `EVP_KDF_CTX_set_SKEY()`, `EVP_KDF_derive_SKEY()`,
+   and `EVP_PKEY_derive_SKEY()` functions.
+
+   *Dmitry Belyavskiy and Simo Sorce*
+
+ * Added PCT for key import for SLH-DSA when in FIPS mode.
+
+   *Dr Paul Dale*
+
+ * Added `i2d_PKCS8PrivateKey(3)` API to complement `i2d_PrivateKey(3)`,
+   the former always outputs PKCS#8.
+
+   *Viktor Dukhovni*
+
+ * Implemented interleaved AES-CBC+HMAC-SHA algorithm on AArch64.
+
+   *Fangming Fang*
+
+ * Added NIST security categories for PKEY objects.
+
+   *Dr Paul Dale*
+
+ * Added notification when all stream FINs are acknowledged in QUIC.  Introduced
+   `ossl_quic_channel_notify_flush_done()` so that once final FINs are ACKed,
+   the channel transitions to terminating and `SSL_poll()` signals completion.
+   This allows applications to progress shutdown reliably.
+
+   *Alexandr Nedvědický*
+
+ * Added array memory allocation routines and converted suitable memory
+   allocation calls in the library to them.
+
+   *Eugene Syromiatnikov*
+
+ * Fixed behavior change of EC keygen by adding the generic error entry if the
+   provider did not itself add an error entry onto the queue.  That way, there
+   always is an error on the error queue in case of a failure, but no behavior
+   change in case the provider emitted the error entry itself.
+
+   *Ingo Franzki*
+
+ * Documented all the environment variables used across the project
+   in `openssl-env(7)` and in specific man pages.
+
+   *Eugene Syromiatnikov*
+
+ * Added SHA-2 assembly implementation enhancing performance for LoongArch.
+   Added optimized SM3, MD5, SHA-256, SHA-512 implementation using Zbb extension
+   for RISC-V.
+
+   *Julian Zhu*
+
+ * Added options `CRYPTO_MEM_SEC` and `CRYPTO_MEM_SEC_MINSIZE` to `openssl` app
+   to initialize secure memory at the beginning of `openssl` app.
+
+   *Norbert Pócs*
+
+ * Resolved compiler warnings on Win64 builds.
+
+   *Tomáš Mráz*
+
+ * Extended new `CRYPTO_THREAD_[get|set]_local` API to reduce the usage
+   of OS thread-local variables.
+
+   *Neil Horman*
+
+ * Added `make` targets `build_inst_sw` and `build_inst_programs` which have
+   the functionality to split the build into two parts, e.g. when tests
+   should be built with different compiler flags than the installed software.
+
+   *Pavol Zacik*
+
+ * Refactored `OSSL_PARAM` name parsing so that automatically generated
+   parsers are used instead of `OSSL_PARAM_locate()` calls.  This should
+   also ensure that the list of acceptable parameters better matches
+   those which are actually processed.  It should also provide a small
+   performance improvement, because repeated iteration over passed
+   parameter arrays is avoided.
+
+   *Dr Paul Dale*
+
+ * Introduced `SSL_OP_SERVER_PREFERENCE`, superseding misleadingly
+   named `SSL_OP_CIPHER_SERVER_PREFERENCE`.
+
+   *Michael Baentsch*
+
+ * Added LMS signature verification support as per [SP 800-208].
+   This support is present in both the FIPS and default providers.
+
+   *Shane Lontis and Paul Dale*
+
+ * Introduced use of `<stdbool.h>` when handling JSON encoding
+   in the OpenSSL codebase, replacing the previous use of `int`
+   for these boolean values.
+
+   *Alexis Goodfellow*
+
+ * An ANSI-C toolchain is no longer sufficient for building OpenSSL.
+   The code should be built using compilers supporting C-99 features.
+
+   *Alexandr Nedvědický*
+
+ * Support for the VxWorks platforms has been removed.  These platforms
+   were unadopted, unmaintained and reported to be non-functional.
+
+   *Anthony Ioppolo*
+
+ * Relaxed the path check in OpenSSL's `file:` scheme implementation for
+   `OSSL_STORE`.  Previously, when the `file:` scheme is an explicit part
+   of the URI, our implementation required an absolute path, such as
+   `file:/path/to/file.pem`.  This requirement is now relaxed, allowing
+   `file:path/to/file.pem`, as well as `file:file.pem`.
+
+   *Richard Levitte*
+
+ * Changed `openssl-pkey(1)` to match the documentation when private keys
+   are output in DER format (`-outform DER`) by producing the PKCS#8 form
+   by default.  Previously, this would output the *traditional* form for those
+   older key types (`DSA`, `RSA`, `ECDSA`) that had such a form.  The
+   `-traditional` flag has been extended to support explicit requests to output
+   that format in DER format (it was previously PEM-only).
+
+   *Viktor Dukhovni*
+
+ * Added an `openssl configutl` utility for processing the OpenSSL
+   configuration file and dumping the equal configuration file.
+
+   *Dmitry Belyavskiy based on Clemens Lang's code*
+
+ * Added support for setting a free function thunk to `OPENSSL_sk` stack types.
+   Using a thunk allows the type specific free function to be called
+   with the correct type information from generic functions like
+   `OPENSSL_sk_pop_free()`.
+
+   *Frederik Wedel-Heinen*
+
+ * Enabled x86-64 SM4 optimizations with SM4 ISA Extension available starting
+   Lunar Lake and Arrow Lake S CPUs.  The expected performance improvement
+   is ~3.6x for `sm4-cbc`, ~2.9x for `sm4-gcm`, ~9.2x for `sm4-xts`,
+   ~5.3x for `sm4-ccm` (on average, may vary depending on the data size)
+   on Arrow Lake S.
+
+   *Alina Elizarova*
+
+ * Enabled x86-64 SM3 optimizations with SM3 ISA Extension available starting
+   Lunar Lake and Arrow Lake S CPUs.  The expected performance improvement
+   is ~2.2—4.7x (depends on the data size) on Arrow Lake S.
+
+   *Alina Elizarova*
+
+ * Enabled x86-64 SHA-512 optimizations with SHA512 ISA Extension.
+   Optimized digests: `sha384`, `sha512`, `sha512-224`, `sha512-256`.
+   `openssl speed` shows speedups ranging from 1.6x to 4.5x
+   on the P-cores of Intel Core Ultra 5 238V.
+
+   *Adrian Stanciu*
+
+ * Changed default EC point formats configuration to support only 'uncompressed'
+   format, and added `SSL_OP_LEGACY_EC_POINT_FORMATS` flag and options
+   to re-enable previous default, if required.
+
+   *Tim Perry*
+
+ * Increased PKCS#12 default `macsaltlen` from 8 to 16, as, per NIST
+   [SP 800-132], this improves interoperability for newly generated PKCS#12
+   stores between FIPS and non-FIPS implementations.
+
+   *Dimitri John Ledkov*
+
+ * Added `X509_CRL_get0_tbs_sigalg()` accessor for the signature
+   `AlgorithmIdentifier` inside CRL's `TBSCertList`.
+
+   *Theo Buehler*
+
+ * Added OIDS for HKDFs with SHA-256, SHA-384, and SHA-512.  Added ability
+   to load HKDF configured with these explicit digests by name or OID.
+
+   *Daniel Van Geest (CryptoNext Security)*
+
+ * Added Intel AVX-512 and VAES optimizations for AES-CFB128 algorithms.
+   Encryption performance on large buffers improved by 1.5—1.7x,
+   while decryption speed increased by 20—23x.
+
+   *Adrian Stanciu*
+
+ * Added support for TLS 1.3 OCSP multi-stapling for server certs.
+    * new `s_client` options:
+       * `-ocsp_check_leaf`: Checks the status of the leaf (server) certificate.
+       * `-ocsp_check_all`: Checks the status of all certificates in the server
+         chain.
+    * new `s_server` option:
+       * `-status_all` Provides OCSP status information for the entire server
+         certificate chain (multi-stapling) for TLS 1.3 and later.
+    * Improved `-status_file` option can now be given multiple times to provide
+      multiple files containing OCSP responses.
+
+   *Michael Krueger, Martin Rauch*
+
+ * Added `KEMRecipientInfo` (RFC 9629) and ML-KEM (`draft-ietf-lamps-cms-kyber`)
+   support to CMS.
+
+   *Daniel Van Geest (CryptoNext Security)*
+
+ * Added support for FIPS 186-5 deterministic ECDSA signature
+   generation to the FIPS provider.
+
+   *Dimitri John Ledkov*
+
 OpenSSL 3.5
 -----------
+
+### Changes between 3.5.3 and 3.5.4 [30 Sep 2025]
+
+ * Fix Out-of-bounds read & write in RFC 3211 KEK Unwrap
+
+   Issue summary: An application trying to decrypt CMS messages encrypted using
+   password based encryption can trigger an out-of-bounds read and write.
+
+   Impact summary: This out-of-bounds read may trigger a crash which leads to
+   Denial of Service for an application. The out-of-bounds write can cause
+   a memory corruption which can have various consequences including
+   a Denial of Service or Execution of attacker-supplied code.
+
+   The issue was reported by Stanislav Fort (Aisle Research).
+
+   ([CVE-2025-9230])
+
+   *Viktor Dukhovni*
+
+ * Fix Timing side-channel in SM2 algorithm on 64 bit ARM
+
+   Issue summary: A timing side-channel which could potentially allow remote
+   recovery of the private key exists in the SM2 algorithm implementation on
+   64 bit ARM platforms.
+
+   Impact summary: A timing side-channel in SM2 signature computations on
+   64 bit ARM platforms could allow recovering the private key by an attacker.
+
+   The issue was reported by Stanislav Fort (Aisle Research).
+
+   ([CVE-2025-9231])
+
+   *Stanislav Fort and Tomáš Mráz*
+
+ * Fix Out-of-bounds read in HTTP client no_proxy handling
+
+   Issue summary: An application using the OpenSSL HTTP client API functions
+   may trigger an out-of-bounds read if the "no_proxy" environment variable is
+   set and the host portion of the authority component of the HTTP URL is an
+   IPv6 address.
+
+   Impact summary: An out-of-bounds read can trigger a crash which leads to
+   Denial of Service for an application.
+
+   The issue was reported by Stanislav Fort (Aisle Research).
+
+   ([CVE-2025-9232])
+
+   *Stanislav Fort*
+
+ * The FIPS provider no longer performs a PCT on key import for ECX keys
+   (that was introduced in 3.5.2), following the latest update
+   on that requirement in FIPS 140-3 IG 10.3.A additional comment 1.
+
+   *Eugene Syromiatnikov*
+
+ * Fixed the length of the ASN.1 sequence for the SM3 digests of RSA-encrypted
+   signatures.
+
+   *Xiao Lou Dong Feng*
+
+ * Reverted the synthesised `OPENSSL_VERSION_NUMBER` change for the release
+   builds, as it broke some exiting applications that relied on the previous
+   3.x semantics, as documented in `OpenSSL_version(3)`.
+
+   *Richard Levitte*
+
+### Changes between 3.5.2 and 3.5.3 [16 Sep 2025]
+
+ * Avoided a potential race condition introduced in 3.5.1, where
+   `OSSL_STORE_CTX` kept open during lookup while potentially being used
+   by multiple threads simultaneously, that could lead to potential crashes
+   when multiple concurrent TLS connections are served.
+
+   *Matt Caswell*
+
+ * The FIPS provider no longer performs a PCT on key import for RSA, DH,
+   and EC keys (that was introduced in 3.5.2), following the latest update
+   on that requirement in FIPS 140-3 IG 10.3.A additional comment 1.
+
+   *Dr Paul Dale*
+
+ * Secure memory allocation calls are no longer used for HMAC keys.
+
+   *Dr Paul Dale*
+
+ * `openssl req` no longer generates certificates with an empty extension list
+   when SKID/AKID are set to `none` during generation.
+
+   *David Benjamin*
+
+ * The man page date is now derived from the release date provided
+   in `VERSION.dat` and not the current date for the released builds.
+
+   *Enji Cooper*
+
+ * Hardened the provider implementation of the RSA public key "encrypt"
+   operation to add a missing check that the caller-indicated output buffer
+   size is at least as large as the byte count of the RSA modulus.  The issue
+   was reported by Arash Ale Ebrahim from SYSPWN.
+
+   This operation is typically invoked via `EVP_PKEY_encrypt(3)`.  Callers that
+   in fact provide a sufficiently large buffer, but fail to correctly indicate
+   its size may now encounter unexpected errors.  In applications that attempt
+   RSA public encryption into a buffer that is too small, an out-of-bounds
+   write is now avoided and an error is reported instead.
+
+   *Viktor Dukhovni*
+
+ * Added FIPS 140-3 PCT on DH key generation.
+
+   *Nikola Pajkovsky*
+
+ * Fixed the synthesised `OPENSSL_VERSION_NUMBER`.
+
+   *Richard Levitte*
+
+### Changes between 3.5.1 and 3.5.2 [5 Aug 2025]
+
+ * The FIPS provider now performs a PCT on key import for RSA, EC and ECX.
+   This is mandated by FIPS 140-3 IG 10.3.A additional comment 1.
+
+   *Dr Paul Dale*
+
+### Changes between 3.5.0 and 3.5.1 [1 Jul 2025]
+
+ * Fix x509 application adds trusted use instead of rejected use.
+
+   Issue summary: Use of -addreject option with the openssl x509 application adds
+   a trusted use instead of a rejected use for a certificate.
+
+   Impact summary: If a user intends to make a trusted certificate rejected for
+   a particular use it will be instead marked as trusted for that use.
+
+   ([CVE-2025-4575])
+
+   *Tomas Mraz*
+
+ * Aligned the behaviour of TLS and DTLS in the event of a no_renegotiation
+   alert being received. Older versions of OpenSSL failed with DTLS if a
+   no_renegotiation alert was received. All versions of OpenSSL do this for TLS.
+   From 3.2 a bug was exposed that meant that DTLS ignored no_rengotiation. We
+   have now restored the original behaviour and brought DTLS back into line with
+   TLS.
+
+   *Matt Caswell*
 
 ### Changes between 3.4 and 3.5.0 [8 Apr 2025]
 
@@ -2193,6 +2821,24 @@ breaking changes, and mappings for the large list of deprecated functions.
    *Tomáš Mráz*
 
 ### Changes between 3.0.0 and 3.0.1 [14 Dec 2021]
+
+ * Fixed carry bug in BN_mod_exp which may produce incorrect results on MIPS
+   squaring procedure. Many EC algorithms are affected, including some of the
+   TLS 1.3 default curves. Impact was not analyzed in detail, because the
+   pre-requisites for attack are considered unlikely and include reusing
+   private keys. Analysis suggests that attacks against RSA and DSA as a result
+   of this defect would be very difficult to perform and are not believed
+   likely. Attacks against DH are considered just feasible (although very
+   difficult) because most of the work necessary to deduce information about
+   a private key may be performed offline.
+   The amount of resources required for such an attack would be significant.
+   However, for an attack on TLS to be meaningful, the server would have
+   to share the DH private key among multiple clients, which is no longer
+   an option since CVE-2016-0701.
+   The issue only affects OpenSSL on MIPS platforms.
+   ([CVE-2021-4160])
+
+   *Bernd Edlinger*
 
  * Fixed invalid handling of X509_verify_cert() internal errors in libssl
    Internally libssl in OpenSSL calls X509_verify_cert() on the client side to
@@ -6585,6 +7231,11 @@ OpenSSL 1.1.0
    validated when establishing a connection.
 
    *Rob Percival <robpercival@google.com>*
+
+ * SSLv3 is by default disabled at build-time. Builds that are not
+   configured with "enable-ssl3" will not support SSLv3.
+
+   *Kurt Roeckx*
 
 OpenSSL 1.0.2
 -------------
@@ -21199,6 +21850,22 @@ ndif
 
 <!-- Links -->
 
+[CVE-2026-22796]: https://www.openssl.org/news/vulnerabilities.html#CVE-2026-22796
+[CVE-2026-22795]: https://www.openssl.org/news/vulnerabilities.html#CVE-2026-22795
+[CVE-2025-69421]: https://www.openssl.org/news/vulnerabilities.html#CVE-2025-69421
+[CVE-2025-69420]: https://www.openssl.org/news/vulnerabilities.html#CVE-2025-69420
+[CVE-2025-69419]: https://www.openssl.org/news/vulnerabilities.html#CVE-2025-69419
+[CVE-2025-69418]: https://www.openssl.org/news/vulnerabilities.html#CVE-2025-69418
+[CVE-2025-68160]: https://www.openssl.org/news/vulnerabilities.html#CVE-2025-68160
+[CVE-2025-66199]: https://www.openssl.org/news/vulnerabilities.html#CVE-2025-66199
+[CVE-2025-15469]: https://www.openssl.org/news/vulnerabilities.html#CVE-2025-15469
+[CVE-2025-15468]: https://www.openssl.org/news/vulnerabilities.html#CVE-2025-15468
+[CVE-2025-15467]: https://www.openssl.org/news/vulnerabilities.html#CVE-2025-15467
+[CVE-2025-11187]: https://www.openssl.org/news/vulnerabilities.html#CVE-2025-11187
+[CVE-2025-9232]: https://www.openssl.org/news/vulnerabilities.html#CVE-2025-9232
+[CVE-2025-9231]: https://www.openssl.org/news/vulnerabilities.html#CVE-2025-9231
+[CVE-2025-9230]: https://www.openssl.org/news/vulnerabilities.html#CVE-2025-9230
+[CVE-2025-4575]: https://www.openssl.org/news/vulnerabilities.html#CVE-2025-4575
 [CVE-2024-13176]: https://www.openssl.org/news/vulnerabilities.html#CVE-2024-13176
 [CVE-2024-9143]: https://www.openssl.org/news/vulnerabilities.html#CVE-2024-9143
 [CVE-2024-6119]: https://www.openssl.org/news/vulnerabilities.html#CVE-2024-6119
@@ -21396,3 +22063,5 @@ ndif
 [CVE-2002-0655]: https://www.openssl.org/news/vulnerabilities.html#CVE-2002-0655
 [CMVP]: https://csrc.nist.gov/projects/cryptographic-module-validation-program
 [ESV]: https://csrc.nist.gov/Projects/cryptographic-module-validation-program/entropy-validations
+[SP 800-132]: https://csrc.nist.gov/pubs/sp/800/132/final
+[SP 800-208]: https://csrc.nist.gov/pubs/sp/800/208/final

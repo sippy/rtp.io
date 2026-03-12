@@ -88,7 +88,7 @@ subtest "=== pkey handling of public keys (Ed25519) ===" => sub {
     ok(run(app([@app, '-in', $in_ed_key, '-pubin', '-pubout', '-out', $pub_out3])),
        "extract public key from pkey file with -pubin");
     is(compare_text($in_pubkey, $pub_out3), 0,
-       "public key extraced from pkey file with -pubin is same as original");
+       "public key extracted from pkey file with -pubin is same as original");
 };
 
 
@@ -97,8 +97,8 @@ subtest "=== pkey handling of DER encoding ===" => sub {
 
     my $der_out = 'key.der';
     my $pem_out = 'key.pem';
-    ok(run(app([@app, '-in', $in_key, '-outform', 'DER',
-                 '-out', $der_out])),
+    ok(run(app([@app, '-in', $in_key, qw(-traditional -outform DER -out),
+                $der_out])),
        "write DER-encoded pkey");
 
     ok(run(app(['openssl', 'asn1parse', '-in', $der_out, '-inform', 'DER',

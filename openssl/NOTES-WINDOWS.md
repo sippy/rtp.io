@@ -87,6 +87,11 @@ Quick start
        on the Universal CRT or
     - `perl Configure`              to let Configure figure out the platform
 
+    a. If you don't plan to develop OpenSSL yourself and don't need to rebuild,
+       in other words, if you always do a new build, turning off the build
+       dependency feature can speed up build times by up to 50%:
+       `perl Configure no-makedepend`
+
  6. `nmake`
 
  7. `nmake test`
@@ -120,7 +125,7 @@ format:
 `\\HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432node\OpenSSL-<version>-<ctx>`
 
 Where `<version>` is the major.minor version of the library being
-built, and `<ctx>` is the value specified by `-DOPENSSL_WINCTX`.  This allows
+built, and `<ctx>` is the value specified by `-DOSSL_WINCTX`.  This allows
 for multiple openssl builds to be created and installed on a single system, in
 which each library can use its own set of registry keys.
 

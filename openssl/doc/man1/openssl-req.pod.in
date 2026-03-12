@@ -403,7 +403,7 @@ If an extension is added using this option that has the same OID as one
 defined in the extension section of the config file, it overrides that one.
 
 This option can be given multiple times.
-Doing so, the same key most not be given more than once.
+Doing so, the same key must not be given more than once.
 
 =item B<-precert>
 
@@ -554,7 +554,7 @@ several values:
 
 =back
 
-Note that B<utf8only> is the PKIX recommendation in RFC2459 after 2003, and the
+Note that B<utf8only> is the PKIX recommendation in RFC 5280, and the
 default B<string_mask>; B<default> is not the default option. The B<nombstr>
 value is a workaround for some software that has problems with variable-sized
 BMPStrings and UTF8Strings.
