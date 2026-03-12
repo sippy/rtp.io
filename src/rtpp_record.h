@@ -34,14 +34,16 @@ struct rtp_packet;
 struct rtpp_cfg;
 struct pkt_proc_ctx;
 struct rtpp_socket;
+struct rtpp_bindaddr;
 
 struct remote_copy_args {
     char rhost[NI_MAXHOST];
     const char *rport;
     int idx;
-    const struct sockaddr *laddr;
+    const struct rtpp_bindaddr *laddr;
     int lport;
     struct rtpp_socket *fds[2];
+    int tos;
 };
 
 DECLARE_CLASS(rtpp_record, const struct rtpp_cfg *, const struct remote_copy_args *, struct rtpp_session *,

@@ -53,13 +53,15 @@ struct _rtpps_pcount {
 
 #define TOP_DROPS_SIZE 4
 
+struct rtpp_pcount_loc {
+    _Atomic(const struct rtpp_codeptr *) ptr __attribute__((aligned(CACHELINE_SIZE)));
+    _Atomic(unsigned long) cnt;
+};
+
 struct rtpp_pcount_priv {
     struct rtpp_pcount pub;
     struct _rtpps_pcount cnt;
-    struct {
-        _Atomic(const struct rtpp_codeptr *) ptr;
-        _Atomic(unsigned long) cnt;
-    } top_drop_locs[TOP_DROPS_SIZE];
+    struct rtpp_pcount_loc top_drop_locs[TOP_DROPS_SIZE];
 };
 
 static void rtpp_pcount_dtor(struct rtpp_pcount_priv *);

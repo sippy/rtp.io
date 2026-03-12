@@ -238,7 +238,7 @@ rtpp_dtls_conn_ctor(const struct rtpp_cfg *cfsp, SSL_CTX *ctx,
     /* Cannot grab refcount here, circular reference would ensue */
     /* RTPP_OBJ_INCREF(dtls_strmp); */
     pvt->dtls_strm_id = dtls_strmp->stuid;
-    RTPP_OBJ_BORROW(&pvt->pub, cfsp->rtp_streams_wrt);
+    RTPP_OBJ_BORROW_s(&pvt->pub, cfsp->rtp_streams_wrt);
     pvt->streams_wrt = cfsp->rtp_streams_wrt;
     pvt->timed_cf = cfsp->rtpp_timed_cf;
     PUBINST_FININIT(&pvt->pub, pvt, rtpp_dtls_conn_dtor);
@@ -487,6 +487,16 @@ rtpp_dtls_conn_rtp_send(struct rtpp_dtls_conn *self, struct pkt_proc_ctx *pktxp)
 
     if (pvt->state != RDC_UP) {
         return (RES_HERE(-1));
+    }
+
+    if (pktxp->flags & PPROC_FLAG_COW) {
+        struct rtp_packet *p = rtp_packet_alloc();
+        if (p == NULL)
+            return (RES_HERE(-1));
+        rtp_packet_dup(p, pktxp->pktp, 0);
+        RTPP_OBJ_DECREF(pktxp->pktp);
+        pktxp->pktp = p;
+        pktxp->flags ^= PPROC_FLAG_COW;
     }
 
     len = pktxp->pktp->size;

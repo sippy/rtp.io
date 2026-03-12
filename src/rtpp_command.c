@@ -101,6 +101,7 @@ struct create_listener_args {
     const struct sockaddr *ia;
     struct rtpp_socket **fds;
     int *port;
+    int tos;
 };
 
 static enum rtpp_ptu_rval
@@ -129,9 +130,9 @@ create_listener(struct create_listener_args *ctap, unsigned int port, struct rtp
         }
         goto e1;
     }
-    if ((ctap->ia->sa_family == AF_INET) && (ctap->cfs->tos >= 0) &&
-      (CALL_SMETHOD(fd, settos, ctap->cfs->tos) == -1))
-        RTPP_ELOG(ctap->cfs->glog, RTPP_LOG_ERR, "unable to set TOS to %d", ctap->cfs->tos);
+    if ((ctap->ia->sa_family == AF_INET) && (ctap->tos >= 0) &&
+      (CALL_SMETHOD(fd, settos,  ctap->tos) == -1))
+        RTPP_ELOG(ctap->cfs->glog, RTPP_LOG_ERR, "unable to set TOS to %d",  ctap->tos);
     so_rcvbuf = 256 * 1024;
     if (CALL_SMETHOD(fd, setrbuf, so_rcvbuf) == -1)
         RTPP_ELOG(ctap->cfs->glog, RTPP_LOG_ERR, "unable to set 256K receive buffer size");
@@ -178,7 +179,7 @@ failure:
 
 int
 rtpp_create_listener(const struct rtpp_cfg *cfsp, const struct sockaddr *ia, int *port,
-  struct rtpp_socket **fds)
+  struct rtpp_socket **fds, int tos)
 {
     struct create_listener_args cta;
     int i;
@@ -189,6 +190,7 @@ rtpp_create_listener(const struct rtpp_cfg *cfsp, const struct sockaddr *ia, int
     cta.fds = fds;
     cta.ia = ia;
     cta.port = port;
+    cta.tos = tos;
 
     for (i = 0; i < 2; i++)
         fds[i] = NULL;
@@ -223,7 +225,7 @@ rtpp_command_ctor(const struct rtpp_cfg *cfsp, int controlfd,
         RTPP_OBJ_DECREF(cmd);
         return (NULL);
     }
-    RTPP_OBJ_DTOR_ATTACH_OBJ(cmd, cmd->reply);
+    RTPP_OBJ_DTOR_ATTACH_OBJ_s(cmd, cmd->reply);
     return (cmd);
 }
 
@@ -344,7 +346,9 @@ rtpp_command_guard_retrans(struct rtpp_command *cmd,
     PUB2PVT(cmd, pvt);
     cres = CALL_METHOD(rcache_obj, lookup, rtpp_str_fix(&pvt->ctx.cookie));
     if (cres == NULL) {
-        RTPP_OBJ_BORROW(cmd, rcache_obj);
+        if (RTPP_OBJ_BORROW(cmd, rcache_obj) != 0) {
+            return (-1);
+        }
         pvt->ctx.rcache_obj = rcache_obj;
         return (0);
     }
@@ -406,7 +410,12 @@ rtpp_command_split(struct rtpp_command *cmd, int len, int *rval,
             /* Stream communication mode doesn't use cookie */
             if (pvt->ctx.umode != 0 && cap->c == 0 && pvt->ctx.cookie.s == NULL) {
                 pvt->ctx.cookie = *ap;
-                if (rtpp_command_guard_retrans(cmd, rcache_obj)) {
+                int gres = rtpp_command_guard_retrans(cmd, rcache_obj);
+                if (gres < 0) {
+                    *rval = GET_CMD_ENOMEM;
+                    return (-1);
+                }
+                if (gres > 0) {
                     *rval = GET_CMD_OK;
                     return (1);
                 }
@@ -516,7 +525,7 @@ handle_command(const struct rtpp_cfg *cfsp, struct rtpp_command *cmd)
             RTPP_LOG(cfsp->glog, RTPP_LOG_ERR, "can't parse options");
             return 0;
         }
-        RTPP_OBJ_DTOR_ATTACH_OBJ(cmd, cmd->cca.opts.record);
+        RTPP_OBJ_DTOR_ATTACH_OBJ_s(cmd, cmd->cca.opts.record);
         break;
 
     case NORECORD:
@@ -544,7 +553,7 @@ handle_command(const struct rtpp_cfg *cfsp, struct rtpp_command *cmd)
             RTPP_LOG(cfsp->glog, RTPP_LOG_ERR, "can't parse options");
             return 0;
         }
-        RTPP_OBJ_DTOR_ATTACH_OBJ(cmd, cmd->cca.opts.delete);
+        RTPP_OBJ_DTOR_ATTACH_OBJ_s(cmd, cmd->cca.opts.delete);
         break;
 
     case UPDATE:
@@ -617,7 +626,7 @@ handle_command(const struct rtpp_cfg *cfsp, struct rtpp_command *cmd)
             if (cmd->cca.op != UPDATE)
             i = NOT(i);
             RTPP_DBG_ASSERT(cmd->sp == NULL);
-            RTPP_OBJ_DTOR_ATTACH_OBJ(cmd, spa);
+            RTPP_OBJ_DTOR_ATTACH_OBJ_s(cmd, spa);
             cmd->sp = spa;
         }
         break;
@@ -625,7 +634,7 @@ handle_command(const struct rtpp_cfg *cfsp, struct rtpp_command *cmd)
 
     if (i == -1 && cmd->cca.op != UPDATE) {
         rtpp_str_t to_tag = cmd->cca.to_tag ? *cmd->cca.to_tag :
-          (rtpp_str_t){.len = 4, .s = "NONE"};
+          rtpp_str_i("NONE");
         RTPP_LOG(cfsp->glog, RTPP_LOG_INFO,
           "%s request failed: session %.*s, tags %.*s/%.*s not found", cmd->cca.rname,
           (int)cmd->cca.call_id->len, cmd->cca.call_id->s, (int)cmd->cca.from_tag->len,

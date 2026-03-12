@@ -45,10 +45,14 @@
 #include "rtpp_log_obj.h"
 #include "rtpp_network.h"
 #include "rtpp_mallocs.h"
+#include "rtpp_codeptr.h"
+#include "rtpp_refcnt.h"
+#include "rtpp_str.h"
+#include "rtpp_bindaddr.h"
 #include "rtpp_bindaddrs.h"
 
 struct bindaddr_list {
-    struct sockaddr_storage *bindaddr;
+    struct rtpp_bindaddr bindaddr;
     struct bindaddr_list *next;
 };
 
@@ -58,8 +62,56 @@ struct rtpp_bindaddrs_pvt {
     pthread_mutex_t bindaddr_lock;
 };
 
-static const struct sockaddr *
-addr2bindaddr(struct rtpp_bindaddrs *pub, const struct sockaddr *ia, const char **ep)
+static void rtpp_bindaddrs_dtor(struct rtpp_bindaddrs_pvt *);
+
+static const struct rtpp_bindaddr *
+addr2bindaddr_i(struct rtpp_bindaddrs *pub, const struct sockaddr *ia,
+  const char **ep, const struct rtpp_bindaddr_params *params)
+{
+    struct bindaddr_list *bl;
+    struct rtpp_bindaddrs_pvt *cf;
+    struct sockaddr_storage *ap;
+
+    PUB2PVT(pub, cf);
+    pthread_mutex_lock(&cf->bindaddr_lock);
+    for (bl = cf->bindaddr_list; bl != NULL; bl = bl->next) {
+        const struct rtpp_bindaddr *ba = &bl->bindaddr;
+        if (ishostseq(ba->addr, ia) != 0) {
+            const rtpp_str_const_t *bll = &ba->params.label;
+            if (params != NULL && !rtpp_str_match(&params->label, bll))
+                continue;
+            pthread_mutex_unlock(&cf->bindaddr_lock);
+            return (ba);
+        }
+    }
+    bl = rtpp_zmalloc(sizeof(*bl) + sizeof(struct sockaddr_storage));
+    if (bl == NULL) {
+        pthread_mutex_unlock(&cf->bindaddr_lock);
+        *ep = strerror(errno);
+        return (NULL);
+    }
+    ap = (struct sockaddr_storage *)((char *)bl + sizeof(*bl));
+    memcpy(ap, ia, SA_LEN(ia));
+    bl->bindaddr.addr = sstosa(ap);
+    if (params != NULL) {
+        bl->bindaddr.params = *params;
+    }
+    bl->next = cf->bindaddr_list;
+    cf->bindaddr_list = bl;
+    pthread_mutex_unlock(&cf->bindaddr_lock);
+    return (&bl->bindaddr);
+}
+
+static const struct rtpp_bindaddr *
+addr2bindaddr(struct rtpp_bindaddrs *pub, const struct sockaddr *ia,
+  const char **ep)
+{
+
+    return addr2bindaddr_i(pub, ia, ep, NULL);
+}
+
+static const struct rtpp_bindaddr *
+label2bindaddr(struct rtpp_bindaddrs *pub, const rtpp_str_const_t *label)
 {
     struct bindaddr_list *bl;
     struct rtpp_bindaddrs_pvt *cf;
@@ -67,32 +119,26 @@ addr2bindaddr(struct rtpp_bindaddrs *pub, const struct sockaddr *ia, const char 
     PUB2PVT(pub, cf);
     pthread_mutex_lock(&cf->bindaddr_lock);
     for (bl = cf->bindaddr_list; bl != NULL; bl = bl->next) {
-        if (ishostseq(sstosa(bl->bindaddr), ia) != 0) {
-            pthread_mutex_unlock(&cf->bindaddr_lock);
-            return (sstosa(bl->bindaddr));
-        }
+	const rtpp_str_const_t *blabel = &bl->bindaddr.params.label;
+	if (blabel->s != NULL && rtpp_str_match(blabel, label))
+	    break;
     }
-    bl = malloc(sizeof(*bl) + sizeof(*bl->bindaddr));
-    if (bl == NULL) {
-        pthread_mutex_unlock(&cf->bindaddr_lock);
-        *ep = strerror(errno);
-        return (NULL);
-    }
-    bl->bindaddr = (struct sockaddr_storage *)((char *)bl + sizeof(*bl));
-    memcpy(bl->bindaddr, ia, SA_LEN(ia));
-    bl->next = cf->bindaddr_list;
-    cf->bindaddr_list = bl;
     pthread_mutex_unlock(&cf->bindaddr_lock);
-    return (sstosa(bl->bindaddr));
+    return (bl == NULL ? NULL : &bl->bindaddr);
 }
 
-static const struct sockaddr *
+static const struct rtpp_bindaddr *
 host2bindaddr(struct rtpp_bindaddrs *pub, const char *host, int pf,
-  int ai_flags, const char **ep)
+  int ai_flags, const char **ep, const struct rtpp_bindaddr_params *params)
 {
     int n;
     struct sockaddr_storage ia;
-    const struct sockaddr *rval;
+    const struct rtpp_bindaddr *rval;
+
+    if (params != NULL && params->label.s != NULL && label2bindaddr(pub, &params->label) != NULL) {
+	*ep = "duplicate label";
+	return (NULL);
+    }
 
     /*
      * If user specified * then change it to NULL,
@@ -111,11 +157,11 @@ host2bindaddr(struct rtpp_bindaddrs *pub, const char *host, int pf,
         *ep = gai_strerror(n);
         return (NULL);
     }
-    rval = addr2bindaddr(pub, sstosa(&ia), ep);
+    rval = addr2bindaddr_i(pub, sstosa(&ia), ep, params);
     return (rval);
 }
 
-static const struct sockaddr *
+static const struct rtpp_bindaddr *
 bindaddr4af(struct rtpp_bindaddrs *pub, int af)
 {
     struct bindaddr_list *bl;
@@ -124,9 +170,9 @@ bindaddr4af(struct rtpp_bindaddrs *pub, int af)
     PUB2PVT(pub, cf);
     pthread_mutex_lock(&cf->bindaddr_lock);
     for (bl = cf->bindaddr_list; bl != NULL; bl = bl->next) {
-        if (sstosa(bl->bindaddr)->sa_family == af) {
+        if (bl->bindaddr.addr->sa_family == af) {
             pthread_mutex_unlock(&cf->bindaddr_lock);
-            return (sstosa(bl->bindaddr));
+            return (&bl->bindaddr);
         }
     }
     pthread_mutex_unlock(&cf->bindaddr_lock);
@@ -134,25 +180,23 @@ bindaddr4af(struct rtpp_bindaddrs *pub, int af)
 }
 
 static void
-rtpp_bindaddrs_dtor(struct rtpp_bindaddrs *pub)
+rtpp_bindaddrs_dtor(struct rtpp_bindaddrs_pvt *cf)
 {
-    struct rtpp_bindaddrs_pvt *cf;
     struct bindaddr_list *bl, *bl_next;
 
-    PUB2PVT(pub, cf);
     for (bl = cf->bindaddr_list; bl != NULL; bl = bl_next) {
         bl_next = bl->next;
         free(bl);
     }
-    free(cf);
+    pthread_mutex_destroy(&cf->bindaddr_lock);
 }
 
-static const struct sockaddr *
+static const struct rtpp_bindaddr *
 rtpp_bindaddrs_local4remote(struct rtpp_bindaddrs *pub, const struct rtpp_cfg *cfsp,
   struct rtpp_log *log, int pf, const char *host, const char *port)
 {
     struct sockaddr_storage local_addr;
-    const struct sockaddr *rval;
+    const struct rtpp_bindaddr *rval;
     const char *errmsg;
 
     int ai_flags = cfsp->no_resolve ? AI_NUMERICHOST : 0;
@@ -175,24 +219,28 @@ rtpp_bindaddrs_local4remote(struct rtpp_bindaddrs *pub, const struct rtpp_cfg *c
     return (rval);
 }
 
+DEFINE_SMETHODS(rtpp_bindaddrs,
+    .addr2 = &addr2bindaddr,
+    .label2 = &label2bindaddr,
+    .host2 = &host2bindaddr,
+    .foraf = &bindaddr4af,
+    .local4remote = &rtpp_bindaddrs_local4remote,
+);
+
 struct rtpp_bindaddrs *
 rtpp_bindaddrs_ctor(void)
 {
     struct rtpp_bindaddrs_pvt *cf;
 
-    cf = rtpp_zmalloc(sizeof(*cf));
+    cf = rtpp_rzmalloc(sizeof(*cf), PVT_RCOFFS(cf));
     if (cf == NULL)
         goto e0;
     if (pthread_mutex_init(&cf->bindaddr_lock, NULL) != 0)
         goto e1;
-    cf->pub.addr2 = addr2bindaddr;
-    cf->pub.host2 = host2bindaddr;
-    cf->pub.foraf = bindaddr4af;
-    cf->pub.dtor = rtpp_bindaddrs_dtor;
-    cf->pub.local4remote = rtpp_bindaddrs_local4remote;
+    PUBINST_FININIT(&cf->pub, cf, rtpp_bindaddrs_dtor);
     return (&(cf->pub));
 e1:
-    free(cf);
+    RTPP_OBJ_DECREF(&(cf->pub));
 e0:
     return (NULL);
 }

@@ -71,6 +71,7 @@
 #include "rtpp_netio_async.h"
 #include "rtpp_netaddr.h"
 #include "rtpp_linker_set.h"
+#include "rtpp_bindaddr.h"
 #include "advanced/packet_processor.h"
 #include "advanced/pproc_manager.h"
 
@@ -326,7 +327,7 @@ ice_lite_data_ctor(int lufrag_len, int lpwd_len, struct rtpp_minfo *mself)
         goto e6;
     RC_INCREF(mself->super_rcnt);
     ila_c->mself = mself;
-    CALL_SMETHOD(ila_c->rcnt, attach, (rtpp_refcnt_dtor_t)ice_lite_data_dtor, ila_c);
+    RTPP_OBJ_DTOR_ATTACH_s(ila_c, (rtpp_refcnt_dtor_t)ice_lite_data_dtor, ila_c);
     return (ila_c);
 e6:
     RTPP_OBJ_DECREF(ila_c->sock->raddr);
@@ -405,7 +406,7 @@ ice_lite_start(struct ice_lite_agent_cfg *ila_c, struct rtpp_stream *isp,
     pthread_mutex_lock(&ila_c->state_lock);
     laddr = &ila_c->sock->laddr;
     if (laddr->len == 0) {
-        const struct sockaddr *s_laddr = isp->laddr;
+        const struct sockaddr *s_laddr = isp->laddr->addr;
         memcpy(&laddr->u.sa, s_laddr, SA_LEN(s_laddr));
         laddr->len = SA_LEN(s_laddr);
         sa_set_port(laddr, isp->port);
@@ -461,7 +462,7 @@ ice_lite_activate(struct rtpp_module_priv *pvt, const struct rtpp_subc_ctx *ctxp
     if (CALL_SMETHOD(ice_strmp->pproc_manager, reg, PPROC_ORD_RECV,
       &stun_poi) < 0)
         goto e1;
-    struct rtpp_stream_pair rtcp = get_rtcp_pair(ctxp->sessp, ice_strmp);
+    struct rtpp_stream_pair rtcp = get_rtcp_pair(ctxp->env->sessp, ice_strmp);
     if (rtcp.ret != 0) {
         goto e2;
     }
@@ -574,12 +575,12 @@ rtpp_ice_lite_handle_command(struct rtpp_module_priv *pvt,
         rpwd = rtpp_str_fix(&argv[2]);
     case RIL_CMD_C:
     case RIL_CMD_D:
-        ice_strmp = ctxp->strmp_in;
+        ice_strmp = ctxp->env->strmp_in;
         break;
 
     case RIL_CMD_S:
     case RIL_CMD_U:
-        ice_strmp = ctxp->strmp_out;
+        ice_strmp = ctxp->env->strmp_out;
         break;
     }
 
@@ -679,9 +680,9 @@ rtpp_ice_lite_enqueue(const struct pkt_proc_ctx *pktx)
     if (wi == NULL)
         return (PPROC_ACT_DROP);
     wip->pkt = pktx->pktp;
-    RTPP_OBJ_BORROW(wi, ila_c);
+    RTPP_OBJ_BORROW_s(wi, ila_c);
     wip->ila_c = ila_c;
-    RTPP_OBJ_BORROW(wi, pktx->strmp_in);
+    RTPP_OBJ_BORROW_s(wi, pktx->strmp_in);
     wip->strmp_in = pktx->strmp_in;
     if (rtpp_queue_put_item(wi, ila_c->mself->wthr.mod_q) != 0) {
         RTPP_OBJ_DECREF(wi);

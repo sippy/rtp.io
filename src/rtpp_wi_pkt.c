@@ -65,9 +65,11 @@ rtpp_wi_malloc(int sock, const void *msg, size_t msg_len, int flags,
     if (wis == NULL) {
         return (NULL);
     }
-    wis->wip = (const struct rtpp_wi_pvt) {
-        .pub.wi_type = RTPP_WI_TYPE_OPKT,
-        .pub.rcnt = wis->wip.pub.rcnt,
+    wis->wip.pub = (const struct rtpp_wi) {
+        .wi_type = RTPP_WI_TYPE_OPKT,
+        .rcnt = wis->wip.pub.rcnt
+    };
+    wis->wip.sendargs = (const struct rtpp_wi_sendargs) {
         .nsend = 1,
         .sock = sock,
         .flags = flags,
@@ -78,7 +80,7 @@ rtpp_wi_malloc(int sock, const void *msg, size_t msg_len, int flags,
     };
     memcpy(wis->msg, msg, msg_len);
     memcpy(&(wis->to), sendto, tolen);
-    CALL_SMETHOD(wis->wip.pub.rcnt, attach, (rtpp_refcnt_dtor_t)&rtpp_wi_free,
+    RTPP_OBJ_DTOR_ATTACH_s(&wis->wip.pub, (rtpp_refcnt_dtor_t)&rtpp_wi_free,
       wis);
     return (&(wis->wip.pub));
 }
@@ -93,9 +95,11 @@ rtpp_wi_malloc_na(int sock, const void *msg, size_t msg_len, int flags,
     if (wis == NULL) {
         return (NULL);
     }
-    wis->wip = (const struct rtpp_wi_pvt) {
-        .pub.wi_type = RTPP_WI_TYPE_OPKT,
-        .pub.rcnt = wis->wip.pub.rcnt,
+    wis->wip.pub = (const struct rtpp_wi) {
+        .wi_type = RTPP_WI_TYPE_OPKT,
+        .rcnt = wis->wip.pub.rcnt
+    };
+    wis->wip.sendargs = (const struct rtpp_wi_sendargs) {
         .nsend = 1,
         .sock = sock,
         .flags = flags,
@@ -106,7 +110,7 @@ rtpp_wi_malloc_na(int sock, const void *msg, size_t msg_len, int flags,
         .aux_rcnt = data_rcnt,
     };
     memcpy(&(wis->to), sendto, tolen);
-    CALL_SMETHOD(wis->wip.pub.rcnt, attach, (rtpp_refcnt_dtor_t)&rtpp_wi_free,
+    RTPP_OBJ_DTOR_ATTACH_s(&wis->wip.pub, (rtpp_refcnt_dtor_t)&rtpp_wi_free,
       wis);
     return (&(wis->wip.pub));
 }
@@ -117,24 +121,32 @@ rtpp_wi_malloc_pkt_na(int sock, struct rtp_packet *pkt,
   struct rtpp_refcnt *sock_rcnt)
 {
     struct rtpp_wi_pvt *wipp;
+    struct rtpp_wi *wi;
 
-    PUB2PVT(pkt->wi, wipp);
-    *wipp = (const struct rtpp_wi_pvt) {
-        .pub.wi_type = RTPP_WI_TYPE_OPKT,
-        .pub.rcnt = pkt->rcnt,
+    wi = rtp_packet_get_wi(pkt);
+    if (wi == NULL)
+        return (NULL);
+    PUB2PVT(wi, wipp);
+    wipp->pub = (const struct rtpp_wi) {
+        .wi_type = RTPP_WI_TYPE_OPKT,
+        .rcnt = pkt->rcnt
+    };
+    wipp->sendargs = (const struct rtpp_wi_sendargs) {
         .nsend = nsend,
         .sock = sock,
         .msg = pkt->data.buf,
-        .sendto = sstosa(&pkt->sendto),
+        .sendto = sstosa(&wipp->_sendto),
         .msg_len = pkt->size,
-        .tolen = CALL_SMETHOD(sendto, get, sstosa(&pkt->sendto), sizeof(pkt->raddr))
     };
+    wipp->sendargs.tolen = CALL_SMETHOD(sendto, get, sstosa(&wipp->_sendto), sizeof(pkt->raddr));
+    if (RTPP_OBJ_DTOR_ATTACH(pkt, (rtpp_refcnt_dtor_t)rtpp_wi_pkt_free,
+      wipp) != 0) {
+        return (NULL);
+    }
     if (sock_rcnt != NULL) {
         RC_INCREF(sock_rcnt);
-        wipp->aux_rcnt = sock_rcnt;
+        wipp->sendargs.aux_rcnt = sock_rcnt;
     }
-    CALL_SMETHOD(pkt->rcnt, attach, (rtpp_refcnt_dtor_t)rtpp_wi_pkt_free,
-      wipp);
     return (&(wipp->pub));
 }
 
@@ -148,10 +160,10 @@ static void
 rtpp_wi_pkt_free(struct rtpp_wi_pvt *wipp)
 {
 
-    if (wipp->aux_rcnt != NULL) {
-        RC_DECREF(wipp->aux_rcnt);
+    if (wipp->sendargs.aux_rcnt != NULL) {
+        RC_DECREF(wipp->sendargs.aux_rcnt);
     }
-    if (wipp->log != NULL) {
-        RTPP_OBJ_DECREF(wipp->log);
+    if (wipp->sendargs.log != NULL) {
+        RTPP_OBJ_DECREF(wipp->sendargs.log);
     }
 }

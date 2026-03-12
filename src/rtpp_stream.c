@@ -84,6 +84,7 @@
 #include "rtpp_command_stats.h"
 #include "rtpp_modman.h"
 #include "rtpp_session.h"
+#include "rtpp_bindaddr.h"
 
 #define  SEQ_SYNC_IVAL   1.0    /* in seconds */
 
@@ -120,6 +121,7 @@ struct rtpp_stream_priv
     struct rtpp_acct_hold hld_stat;
     /* Descriptor */
     struct rtpp_socket *fd;
+    _Atomic(int) _fd_set;
     /* Remote source address */
     struct rtpp_netaddr *rem_addr;
     int npkts_resizer_in_idx;
@@ -265,19 +267,19 @@ rtpp_stream_ctor(const struct r_stream_ctor_args *ap)
         goto e1;
     }
     pvt->pub.log = pap->log;
-    RTPP_OBJ_BORROW(&pvt->pub, pap->log);
-    RTPP_OBJ_DTOR_ATTACH(&pvt->pub, pthread_mutex_destroy, &pvt->lock);
+    RTPP_OBJ_BORROW_s(&pvt->pub, pap->log);
+    RTPP_OBJ_DTOR_ATTACH_s(&pvt->pub, pthread_mutex_destroy, &pvt->lock);
     pvt->pub.pproc_manager = CALL_SMETHOD(cfs->pproc_manager, clone);
     if (pvt->pub.pproc_manager == NULL) {
         goto e1;
     }
-    RTPP_OBJ_DTOR_ATTACH_OBJ(&pvt->pub, pvt->pub.pproc_manager);
+    RTPP_OBJ_DTOR_ATTACH_OBJ_s(&pvt->pub, pvt->pub.pproc_manager);
     if (pap->pipe_type == PIPE_RTP) {
         pvt->pub.analyzer = rtpp_analyzer_ctor(pap->log);
         if (pvt->pub.analyzer == NULL) {
             goto e1;
         }
-        RTPP_OBJ_DTOR_ATTACH_OBJ(&pvt->pub, pvt->pub.analyzer);
+        RTPP_OBJ_DTOR_ATTACH_OBJ_s(&pvt->pub, pvt->pub.analyzer);
 
         const struct packet_processor_if resize_packet_poi = {
             .descr = "resize_packet",
@@ -306,31 +308,34 @@ rtpp_stream_ctor(const struct r_stream_ctor_args *ap)
     if (pvt->pub.pcnt_strm == NULL) {
         goto e3;
     }
-    RTPP_OBJ_DTOR_ATTACH_OBJ(&pvt->pub, pvt->pub.pcnt_strm);
+    RTPP_OBJ_DTOR_ATTACH_OBJ_s(&pvt->pub, pvt->pub.pcnt_strm);
     pvt->raddr_prev = rtpp_netaddr_ctor();
     if (pvt->raddr_prev == NULL) {
         goto e3;
     }
-    RTPP_OBJ_DTOR_ATTACH_OBJ(&pvt->pub, pvt->raddr_prev);
+    RTPP_OBJ_DTOR_ATTACH_OBJ_s(&pvt->pub, pvt->raddr_prev);
     pvt->rem_addr = rtpp_netaddr_ctor();
     if (pvt->rem_addr == NULL) {
         goto e3;
     }
-    RTPP_OBJ_DTOR_ATTACH_OBJ(&pvt->pub, pvt->rem_addr);
+    RTPP_OBJ_DTOR_ATTACH_OBJ_s(&pvt->pub, pvt->rem_addr);
     pvt->proc_servers = cfs->proc_servers;
-    RTPP_OBJ_BORROW(&pvt->pub, cfs->proc_servers);
+    RTPP_OBJ_BORROW_s(&pvt->pub, cfs->proc_servers);
     pvt->rtpp_stats = cfs->rtpp_stats;
     pvt->pub.side = ap->side;
     pvt->pub.pipe_type = pap->pipe_type;
+    pvt->pub.tos = cfs->tos;
 
     pvt->pub.stuid = CALL_SMETHOD(cfs->guid, gen);
     pvt->pub.seuid = pap->seuid;
+    pvt->pub.stream_ttl = cfs->max_ttl;
     for (unsigned int i = 0; i < nmodules; i++) {
         atomic_init(&(pvt->pmod_data.adp[i]), NULL);
     }
     pvt->pmod_data.nmodules = nmodules;
     pvt->pub.pmod_datap = &(pvt->pmod_data);
     pvt->pub.laddr = sap->lia[ap->side];
+    atomic_init(&pvt->_fd_set, 0);
     PUBINST_FININIT(&pvt->pub, pvt, rtpp_stream_dtor);
     return (&pvt->pub);
 
@@ -516,7 +521,7 @@ rtpp_stream_handle_play(struct rtpp_stream *self,
         }
         pthread_mutex_unlock(&pvt->lock);
         rtpp_command_get_stats(ap->cmd)->nplrs_created.cnt++;
-        RTPP_OBJ_DTOR_ATTACH(rsrv, (rtpp_refcnt_dtor_t)player_predestroy_cb,
+        RTPP_OBJ_DTOR_ATTACH_s(rsrv, (rtpp_refcnt_dtor_t)player_predestroy_cb,
           pvt->rtpp_stats);
         RTPP_OBJ_DECREF(rsrv);
         RTPP_LOG(pvt->pub.log, RTPP_LOG_INFO,
@@ -913,6 +918,7 @@ rtpp_stream_set_skt(struct rtpp_stream *self, struct rtpp_socket *new_skt)
         RTPP_DBG_ASSERT(pvt->fd != NULL);
         RTPP_OBJ_DECREF(pvt->fd);
         pvt->fd = NULL;
+        atomic_store_explicit(&pvt->_fd_set, 0, memory_order_relaxed);
         pthread_mutex_unlock(&pvt->lock);
         return;
     }
@@ -920,6 +926,7 @@ rtpp_stream_set_skt(struct rtpp_stream *self, struct rtpp_socket *new_skt)
     CALL_SMETHOD(new_skt, set_stuid, self->stuid);
     pvt->fd = new_skt;
     RTPP_OBJ_INCREF(pvt->fd);
+    atomic_store_explicit(&pvt->_fd_set, 1, memory_order_relaxed);
     if (pvt->rtps.inact != 0 && !CALL_SMETHOD(pvt->rem_addr, isempty)) {
         _rtpp_stream_plr_start(pvt, getdtime());
     }
@@ -957,6 +964,7 @@ rtpp_stream_update_skt(struct rtpp_stream *self, struct rtpp_socket *new_skt)
     CALL_SMETHOD(new_skt, set_stuid, self->stuid);
     pvt->fd = new_skt;
     RTPP_OBJ_INCREF(pvt->fd);
+    atomic_store_explicit(&pvt->_fd_set, 1, memory_order_relaxed);
     if (pvt->rtps.inact != 0 && !CALL_SMETHOD(pvt->rem_addr, isempty)) {
         _rtpp_stream_plr_start(pvt, getdtime());
     }
@@ -1000,7 +1008,7 @@ _rtpp_stream_recv_pkt(struct rtpp_stream_priv *pvt,
 {
     struct rtp_packet *pkt;
 
-    pkt = CALL_SMETHOD(pvt->fd, rtp_recv, dtime, pvt->pub.laddr, pvt->pub.port);
+    pkt = CALL_SMETHOD(pvt->fd, rtp_recv, dtime, pvt->pub.laddr->addr, pvt->pub.port);
     return (pkt);
 }
 
@@ -1010,16 +1018,12 @@ rtpp_stream_issendable(struct rtpp_stream *self)
     struct rtpp_stream_priv *pvt;
 
     PUB2PVT(self, pvt);
-    pthread_mutex_lock(&pvt->lock);
     if (CALL_SMETHOD(pvt->rem_addr, isempty)) {
-        pthread_mutex_unlock(&pvt->lock);
         return (0);
     }
-    if (pvt->fd == NULL) {
-        pthread_mutex_unlock(&pvt->lock);
+    if (atomic_load_explicit(&pvt->_fd_set, memory_order_relaxed) == 0) {
         return (0);
     }
-    pthread_mutex_unlock(&pvt->lock);
     return (1);
 }
 

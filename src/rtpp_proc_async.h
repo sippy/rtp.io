@@ -41,6 +41,5 @@ struct rtpp_proc_async {
 };
 
 struct rtpp_proc_async *rtpp_proc_async_ctor(const struct rtpp_cfg *);
-void rtpp_proc_async_setprocname(pthread_t thread_id, const char *pname);
 
 #endif

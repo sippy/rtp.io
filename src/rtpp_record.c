@@ -77,6 +77,7 @@
 #include "rtpp_pipe.h"
 #include "rtpp_netaddr.h"
 #include "rtpp_socket.h"
+#include "rtpp_bindaddr.h"
 #include "advanced/pproc_manager.h"
 
 enum record_mode {MODE_LOCAL_PKT, MODE_REMOTE_RTP, MODE_LOCAL_PCAP}; /* MODE_LOCAL_RTP/MODE_REMOTE_PKT? */
@@ -182,8 +183,8 @@ rtpp_record_ctor(const struct rtpp_cfg *cfsp, const struct remote_copy_args *rap
         if (rval < 0) {
             goto e2;
         }
-        RTPP_OBJ_BORROW(&rrc->pub, rap->fds[rap->idx]);
-        CALL_SMETHOD(rrc->pub.rcnt, attach, (rtpp_refcnt_dtor_t)&rtpp_record_close,
+        RTPP_OBJ_BORROW_s(&rrc->pub, rap->fds[rap->idx]);
+        RTPP_OBJ_DTOR_ATTACH_s(&rrc->pub, (rtpp_refcnt_dtor_t)&rtpp_record_close,
           rrc);
         return (&rrc->pub);
     }
@@ -257,7 +258,7 @@ rtpp_record_ctor(const struct rtpp_cfg *cfsp, const struct remote_copy_args *rap
         }
     }
 
-    CALL_SMETHOD(rrc->pub.rcnt, attach, (rtpp_refcnt_dtor_t)&rtpp_record_close,
+    RTPP_OBJ_DTOR_ATTACH_s(&rrc->pub, (rtpp_refcnt_dtor_t)&rtpp_record_close,
       rrc);
     return (&rrc->pub);
 
@@ -563,7 +564,7 @@ rtpp_record_write_locked(struct rtpp_record_channel *rrc, const struct pkt_proc_
         RTPP_OBJ_DECREF(rem_addr);
     } else {
         memset(&daddr, 0, sizeof(daddr));
-        sstosa(&daddr)->sa_family = stp->laddr->sa_family;
+        sstosa(&daddr)->sa_family = stp->laddr->addr->sa_family;
     }
 
     if (packet->rtime.wall == -1) {
@@ -601,7 +602,7 @@ rtpp_record_write_locked(struct rtpp_record_channel *rrc, const struct pkt_proc_
 
     struct prepare_pkt_hdr_args pargs = {
       .packet = packet,
-      .ldaddr = stp->laddr,
+      .ldaddr = stp->laddr->addr,
       .ldport = stp->port,
       .daddr = sstosa(&daddr),
       .face = (rrc->record_single_file == 0) ? 0 : (stp->pipe_type != PIPE_RTP),
