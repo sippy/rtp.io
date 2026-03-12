@@ -31,7 +31,7 @@ RTPP_AUTOSRC_SOURCES_S = rtpp_netaddr.h rtpp_pearson_perfect.h rtpp_refcnt.h \
   rtpp_record.h rtpp_hash_table.h rtpp_weakref.h rtpp_analyzer.h \
   rtpp_pcnt_strm.h rtpp_ttl.h rtpp_pipe.h rtpp_ringbuf.h rtpp_sessinfo.h \
   rtpp_rw_lock.h rtpp_proc_servers.h rtpp_proc_wakeup.h rtpp_socket.h \
-  rtpp_refproxy.h rtpp_command_reply.h rtpp_genuid.h
+  rtpp_refproxy.h rtpp_command_reply.h rtpp_genuid.h rtpp_bindaddrs.h
 
 CMDSRCDIR=$(MAINSRCDIR)/commands
 BASE_SOURCES=main.c rtp.h rtpp_server.c \
@@ -56,7 +56,7 @@ BASE_SOURCES=main.c rtp.h rtpp_server.c \
   rtp_packet.c rtpp_time.c rtpp_time.h rtpp_pcnts_strm.h rtpp_runcreds.h \
   rtpp_sessinfo.c rtpp_weakref.c rtpp_rw_lock.c \
   rtpp_proc_servers.c rtpp_stream.c rtpp_proc_wakeup.c \
-  rtpp_genuid.c \
+  rtpp_genuid.c rtpp_proc_util.c rtpp_proc_util.h \
   rtpp_log_obj.c rtpp_socket.c rtpp_wi_apis.c rtpp_wi_apis.h \
   rtpp_ttl.c rtpp_proc_ttl.h rtpp_proc_ttl.c \
   rtpp_pipe.c rtpp_pcount.c rtpp_debug.h rtpp_wi_sgnl.c rtpp_wi_sgnl.h \
@@ -64,7 +64,8 @@ BASE_SOURCES=main.c rtp.h rtpp_server.c \
   rtpp_pcnt_strm.c rtpp_endian.h rtpp_ringbuf.c \
   $(CMDSRCDIR)/rpcpv1_delete.c $(CMDSRCDIR)/rpcpv1_delete.h $(CMDSRCDIR)/rpcpv1_record.c \
   $(CMDSRCDIR)/rpcpv1_record.h rtpp_port_table.c rtpp_acct.c \
-  rtpp_acct.h rtpp_stats.h rtpp_bindaddrs.c rtpp_bindaddrs.h rtpp_ssrc.h \
+  rtpp_acct.h rtpp_stats.h rtpp_bindaddrs.c rtpp_bindaddr.h \
+  rtpp_bindargs.c rtpp_bindargs.h rtpp_ssrc.h \
   rtpp_netaddr.c rtpp_acct_pipe.h $(CMDSRCDIR)/rpcpv1_play.c \
   $(CMDSRCDIR)/rpcpv1_play.h $(CMDSRCDIR)/rpcpv1_ver.h $(CMDSRCDIR)/rpcpv1_ver.c \
   rtpp_pearson_perfect.c rtpp_acct_rtcp.h \
@@ -75,7 +76,9 @@ BASE_SOURCES=main.c rtp.h rtpp_server.c \
   $(CMDSRCDIR)/rpcpv1_norecord.c $(CMDSRCDIR)/rpcpv1_norecord.h \
   $(CMDSRCDIR)/rpcpv1_ul_subc.c $(CMDSRCDIR)/rpcpv1_ul_subc.h \
   $(RTPP_AUTOSRC_SOURCES) rtpp_epoll.c rtpp_str.c rtpp_str.h \
-  rtpp_sbuf.c rtpp_sbuf.h rtpp_refproxy.c rtpp_command_reply.c
+  rtpp_sbuf.c rtpp_sbuf.h rtpp_refproxy.c rtpp_command_reply.c \
+  $(CMDSRCDIR)/rpcpv1_ul_subc_set.c $(CMDSRCDIR)/rpcpv1_ul_subc_set.h \
+  $(CMDSRCDIR)/rpcpv1_ul_subc_copy.c $(CMDSRCDIR)/rpcpv1_ul_subc_copy.h
 BASE_SOURCES+=$(ADV_DIR)/packet_observer.h $(ADV_DIR)/pproc_manager.c \
   $(ADV_DIR)/pproc_manager.h
 BASE_SOURCES+=rtpp_modman.c rtpp_module_if_static.c rtpp_module_if_static.h

@@ -30,6 +30,7 @@
 struct rtpp_codeptr;
 
 #define MAX_DTORS 24
+#define CACHELINE_SIZE 64
 
 typedef void (*rtpp_refcnt_dtor_t)(void *);
 
@@ -38,8 +39,10 @@ DECLARE_CLASS(rtpp_refcnt, void *, rtpp_refcnt_dtor_t);
 DECLARE_METHOD(rtpp_refcnt, refcnt_incref, void, const struct rtpp_codeptr *);
 DECLARE_METHOD(rtpp_refcnt, refcnt_decref, void, const struct rtpp_codeptr *);
 DECLARE_METHOD(rtpp_refcnt, refcnt_getdata, void *);
-DECLARE_METHOD(rtpp_refcnt, refcnt_attach, void, rtpp_refcnt_dtor_t, void *);
-DECLARE_METHOD(rtpp_refcnt, refcnt_attach_rc, void, struct rtpp_refcnt *);
+DECLARE_METHOD(rtpp_refcnt, refcnt_attach, int, rtpp_refcnt_dtor_t, void *);
+DECLARE_METHOD(rtpp_refcnt, refcnt_attach_nc, void, rtpp_refcnt_dtor_t, void *);
+DECLARE_METHOD(rtpp_refcnt, refcnt_attach_rc, int, struct rtpp_refcnt *);
+DECLARE_METHOD(rtpp_refcnt, refcnt_attach_rc_nc, void, struct rtpp_refcnt *);
 DECLARE_METHOD(rtpp_refcnt, refcnt_traceen, void, const struct rtpp_codeptr *);
 DECLARE_METHOD(rtpp_refcnt, refcnt_peek, int);
 
@@ -48,8 +51,10 @@ DECLARE_SMETHODS(rtpp_refcnt)
     METHOD_ENTRY(refcnt_incref, incref);
     METHOD_ENTRY(refcnt_decref, decref);
     METHOD_ENTRY(refcnt_getdata, getdata);
-    METHOD_ENTRY(refcnt_attach, attach);
-    METHOD_ENTRY(refcnt_attach_rc, attach_rc);
+    METHOD_ENTRY(refcnt_attach, attach) __attribute__((warn_unused_result));
+    METHOD_ENTRY(refcnt_attach_nc, attach_nc);
+    METHOD_ENTRY(refcnt_attach_rc, attach_rc) __attribute__((warn_unused_result));
+    METHOD_ENTRY(refcnt_attach_rc_nc, attach_rc_nc);
     METHOD_ENTRY(refcnt_traceen, traceen);
     METHOD_ENTRY(refcnt_peek, peek);
 };
@@ -65,6 +70,7 @@ struct rtpp_refcnt
 };
 
 extern const size_t rtpp_refcnt_osize;
+extern const size_t rtpp_refcnt_oalign;
 rtpp_refcnt_rot *rtpp_refcnt_ctor_pa(void *, void *);
 
 #define _GET_ARG_3(_1, _2, _3, ...) _3

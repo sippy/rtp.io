@@ -74,6 +74,7 @@
 #include "rtpp_pcount.h"
 #include "rtpp_pcnt_strm.h"
 #include "rtpp_linker_set.h"
+#include "rtpp_bindaddr.h"
 #include "advanced/packet_processor.h"
 #include "advanced/pproc_manager.h"
 
@@ -215,9 +216,9 @@ dtls_gw_data_ctor(struct rtpp_module_priv *pvt, struct rtpp_stream *dtls_strmp)
     }
     rtps_c->mself = pvt->mself;
     RC_INCREF(pvt->mself->super_rcnt);
-    RTPP_OBJ_DTOR_ATTACH_RC(rtps_c, pvt->mself->super_rcnt);
-    RTPP_OBJ_DTOR_ATTACH_RC(rtps_c, rtps_c->dtls_conn->rcnt);
-    RTPP_OBJ_DTOR_ATTACH(rtps_c, GET_SMETHOD(rtps_c->dtls_conn, godead),
+    RTPP_OBJ_DTOR_ATTACH_RC_s(rtps_c, pvt->mself->super_rcnt);
+    RTPP_OBJ_DTOR_ATTACH_RC_s(rtps_c, rtps_c->dtls_conn->rcnt);
+    RTPP_OBJ_DTOR_ATTACH_s(rtps_c, GET_SMETHOD(rtps_c->dtls_conn, godead),
       rtps_c->dtls_conn);
     rtps_c->mself = pvt->mself;
     return (rtps_c);
@@ -248,7 +249,8 @@ rtpp_dtls_gw_setup_sender(struct rtpp_module_priv *pvt,
         abort();
     }
 
-    if (rtpp_create_listener(pvt->cfsp, dtls_strmp->laddr, &lport, fds) == -1)
+    if (rtpp_create_listener(pvt->cfsp, dtls_strmp->laddr->addr, &lport, fds,
+      dtls_strmp->tos) == -1)
         return (-1);
     CALL_SMETHOD(pvt->cfsp->sessinfo, append, spa, sidx, fds);
     CALL_METHOD(pvt->cfsp->rtpp_proc_cf, nudge);
@@ -348,14 +350,14 @@ rtpp_dtls_gw_handle_command(struct rtpp_module_priv *pvt,
         rdfsp = &rdfs;
         /* Fallthrough */
     case RDG_CMD_D:
-        dtls_strmp = ctxp->strmp_in;
+        dtls_strmp = ctxp->env->strmp_in;
         break;
 
     case RDG_CMD_S:
         rdfsp = NULL;
         /* Fallthrough */
     case RDG_CMD_U:
-        dtls_strmp = ctxp->strmp_out;
+        dtls_strmp = ctxp->env->strmp_out;
         break;
     }
 
@@ -382,7 +384,7 @@ rtpp_dtls_gw_handle_command(struct rtpp_module_priv *pvt,
         }
     }
     if (rdfsp != NULL && rdfs.peer_mode == RTPP_DTLS_PASSIVE) {
-        if (rtpp_dtls_gw_setup_sender(pvt, ctxp->sessp, dtls_strmp) != 0) {
+        if (rtpp_dtls_gw_setup_sender(pvt, ctxp->env->sessp, dtls_strmp) != 0) {
             goto e0;
         }
     }
@@ -508,12 +510,12 @@ rtpp_dtls_gw_enqueue(const struct pkt_proc_ctx *pktxp)
     if (wi == NULL)
         return (PPROC_ACT_DROP);
     wip->edata = *edata;
-    RTPP_OBJ_BORROW(wi, edata->dtls_conn);
+    RTPP_OBJ_BORROW_s(wi, edata->dtls_conn);
     wip->pktx = *pktxp;
     wip->pktx.rsp = NULL;
-    RTPP_OBJ_BORROW(wi, pktxp->strmp_in);
+    RTPP_OBJ_BORROW_s(wi, pktxp->strmp_in);
     if (pktxp->strmp_out != NULL)
-        RTPP_OBJ_BORROW(wi, pktxp->strmp_out);
+        RTPP_OBJ_BORROW_s(wi, pktxp->strmp_out);
     if (rtpp_queue_put_item(wi, edata->mself->wthr.mod_q) != 0) {
         RTPP_OBJ_DECREF(wi);
         return (PPROC_ACT_DROP);
