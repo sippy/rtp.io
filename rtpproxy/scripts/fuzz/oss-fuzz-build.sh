@@ -5,7 +5,7 @@ set -x
 set -o pipefail
 
 CC="${CC:-"clang19"}"
-CXX="${CXX:-"${CC}"}"
+CXX="${CXX:-"clang++19"}"
 CFLAGS="${CFLAGS:-"-g3 -O1 -Wall"}"
 CXXFLAGS="${CXXFLAGS:-"${CFLAGS}"}"
 OUT="${OUT:-"."}"
@@ -20,14 +20,16 @@ install_src_pkg() {
   local PKGNAME="${1}"
   mkdir -p /tmp/src/libfuzzer
   local TMPDIR="`mktemp -d /tmp/src/libfuzzer/${PKGNAME}.XXXXXXXX`"
+  local TMPFILE="${TMPDIR}/time_hack.h"
+  printf '#define _GNU_SOURCE\n#include <time.h>\n#define time(x) ({if((x) != NULL) *(time_t *)(x) = 0x69b30000; 0x69b30000;})\n'  > "${TMPFILE}"
   local OLD_PWD="`pwd`"
   cd ${TMPDIR}
   apt-get build-dep -y ${PKGNAME}
   apt-get source ${PKGNAME}
   cd ${2}-*
   (head -n 1 debian/rules; \
-   echo "export CFLAGS=${CFLAGS}"; \
-   echo "export CXXFLAGS=${CXXFLAGS}"; \
+   echo "export CFLAGS=${CFLAGS} --include ${TMPFILE}"; \
+   echo "export CXXFLAGS=${CXXFLAGS} --include ${TMPFILE}"; \
    echo "export RANLIB=${RANLIB}"; \
    tail -n +2 debian/rules) > debian/_rules
   mv debian/_rules debian/rules
@@ -84,7 +86,7 @@ fi
 
 LD="lld"
 LD_BIN="ld.lld"
-LDFLAGS="-fuse-ld=${LD}"
+LDFLAGS="${LDFLAGS} -fuse-ld=${LD}"
 
 CFLAGS="${CFLAGS} -DRTPP_DEBUG_refcnt=1"
 CXXFLAGS="${CXXFLAGS} -DRTPP_DEBUG_refcnt=1"
@@ -110,7 +112,7 @@ for src in rfz_chunk.c rfz_command.c rfz_utils.c
 do
   obj="${OUT}/${src%.*}.o"
   src=scripts/fuzz/${src}
-  ${CC} ${CFLAGS} ${LIB_FUZZING_ENGINE} -Isrc -o ${obj} -c ${src}
+  ${CC} ${CFLAGS} -Isrc -o ${obj} -c ${src}
   OBJS="${OBJS} ${obj}"
 done
 
@@ -119,7 +121,7 @@ OBJS0="${OBJS}"
 for fz in ${ALL}
 do
   obj="${OUT}/fuzz_${fz}.o"
-  ${CC} ${CFLAGS} ${LIB_FUZZING_ENGINE} -Isrc -Imodules/acct_rtcp_hep \
+  ${CC} ${CFLAGS} -Isrc -Imodules/acct_rtcp_hep \
    -o "${obj}" -c scripts/fuzz/fuzz_${fz}.c
   OBJS="${OBJS0} ${obj}"
 
@@ -132,8 +134,8 @@ do
       ;;
   esac
 
-  ${CXX} ${CXXFLAGS} ${LIB_FUZZING_ENGINE} ${LDFLAGS} -o ${OUT}/fuzz_${fz} \
-   ${OBJS} ${LIBRTPP} -lm ${LIBSRTP}
+  ${CXX} ${CXXFLAGS} ${LDFLAGS} -o ${OUT}/fuzz_${fz} \
+   ${OBJS} ${LIBRTPP} -lm ${LIBSRTP} ${LIB_FUZZING_ENGINE}
 
   for suff in dict options
   do
