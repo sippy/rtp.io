@@ -1,9 +1,12 @@
+#define PY_SSIZE_T_CLEAN
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <assert.h>
 #include <stdbool.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
 #if defined(__linux__)
@@ -15,6 +18,7 @@ extern char *strdup(const char *str);
 #include <structmember.h>
 
 #include <librtpproxy.h>
+#include <rtpp_packet_ext.h>
 
 #include "rtpproxy_mod.h"
 
@@ -61,6 +65,18 @@ typedef struct {
     const char *_extra_args[MAX_EXTRA_ARGS + 1];
 } PyRTPProxyObject;
 
+typedef struct {
+    PyObject_HEAD
+    struct rtpp_packetport *packetport;
+    struct rtp_packet_ext **pop_batch;
+    unsigned int capacity;
+} PyRTPPPacketPortObject;
+
+typedef struct {
+    PyObject_HEAD
+    struct rtp_packet_ext *pktxp;
+} PyRTPPPacketExtObject;
+
 static const char *default_modules[] = {
     "acct_csv", "catch_dtmf", "dtls_gw", "ice_lite", NULL
 };
@@ -74,6 +90,413 @@ static const struct RTPPInitializeParams RTPPInitializeParams = {
     .rec_spool_dir = "/tmp",
     .rec_final_dir = ".",
     .modules = default_modules,
+};
+
+static PyTypeObject PyRTPPPacketPortType;
+static PyTypeObject PyRTPPPacketExtType;
+
+static struct rtp_packet_ext *
+PyRTPPPacketExt_from_bytes(const void *data, Py_ssize_t dlen, unsigned int port)
+{
+    struct rtp_packet_ext *pktxp;
+
+    if (dlen <= 0) {
+        PyErr_SetString(PyExc_ValueError, "data must not be empty");
+        return (NULL);
+    }
+    if (dlen > INT_MAX) {
+        PyErr_SetString(PyExc_ValueError, "data is too large");
+        return (NULL);
+    }
+    pktxp = rtp_packet_ext_ctor((int)dlen, port, data, NULL, NULL);
+    if (pktxp == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "rtp_packet_ext_ctor() failed");
+        return (NULL);
+    }
+    return (pktxp);
+}
+
+static struct rtp_packet_ext *
+PyRTPPPacketExt_from_ctor_arg(PyObject *arg, unsigned int port)
+{
+    struct rtp_packet_ext *pktxp;
+    char *data = NULL;
+    Py_ssize_t dlen;
+    long lval;
+
+    if (PyBytes_Check(arg)) {
+        if (PyBytes_AsStringAndSize(arg, &data, &dlen) != 0) {
+            return (NULL);
+        }
+        return (PyRTPPPacketExt_from_bytes(data, dlen, port));
+    } else {
+        lval = PyLong_AsLong(arg);
+        if (lval == -1 && PyErr_Occurred() != NULL) {
+            PyErr_SetString(PyExc_TypeError, "data must be bytes or size");
+            return (NULL);
+        }
+        if (lval <= 0) {
+            PyErr_SetString(PyExc_ValueError, "size must be greater than 0");
+            return (NULL);
+        }
+        dlen = lval;
+    }
+    pktxp = PyRTPPPacketExt_from_bytes(NULL, dlen, port);
+    if (pktxp == NULL) {
+        return (NULL);
+    }
+    return (pktxp);
+}
+
+static PyObject *
+PyRTPPPacketPort_FromRTPP(struct rtpp_packetport *packetport,
+  unsigned int capacity)
+{
+    PyRTPPPacketPortObject *self;
+
+    self = PyObject_New(PyRTPPPacketPortObject, &PyRTPPPacketPortType);
+    if (self == NULL) {
+        rtpp_packetport_dtor(packetport);
+        return NULL;
+    }
+    self->packetport = packetport;
+    self->capacity = capacity;
+    self->pop_batch = PyMem_New(struct rtp_packet_ext *, capacity);
+    if (self->pop_batch == NULL) {
+        rtpp_packetport_dtor(packetport);
+        PyObject_Del(self);
+        PyErr_NoMemory();
+        return NULL;
+    }
+    return (PyObject *)self;
+}
+
+static PyObject *
+PyRTPPPacketExt_FromRTPP(struct rtp_packet_ext *pktxp)
+{
+    PyRTPPPacketExtObject *self;
+
+    self = PyObject_New(PyRTPPPacketExtObject, &PyRTPPPacketExtType);
+    if (self == NULL) {
+        rtp_packet_ext_dtor(pktxp);
+        return NULL;
+    }
+    self->pktxp = pktxp;
+    return (PyObject *)self;
+}
+
+static PyObject *
+PyRTPPPacketPort_address_ref(PyRTPPPacketPortObject *self, PyObject *args)
+{
+    char buf[64];
+
+    (void)args;
+    snprintf(buf, sizeof(buf), "RTQ:%p", (void *)self->packetport);
+    return PyUnicode_FromString(buf);
+}
+
+static PyObject *
+PyRTPPPacketPort_next_in_port(PyRTPPPacketPortObject *self, PyObject *args)
+{
+    unsigned int port;
+
+    (void)args;
+    port = rtpp_packetport_next_in_port(self->packetport);
+    return PyLong_FromUnsignedLong(port);
+}
+
+static PyObject *
+PyRTPPPacketPort_push(PyRTPPPacketPortObject *self, PyObject *args)
+{
+    struct rtp_packet_ext *pktxp;
+    PyObject *arg0, *dataobj;
+    char *data;
+    Py_ssize_t dlen;
+    unsigned int port;
+
+    if (PyTuple_Size(args) == 1) {
+        if (!PyArg_ParseTuple(args, "O", &arg0)) {
+            return NULL;
+        }
+        if (!PyObject_TypeCheck(arg0, &PyRTPPPacketExtType)) {
+            PyErr_SetString(PyExc_TypeError,
+              "push(packet) expects an rtp.io.packet");
+            return NULL;
+        }
+        pktxp = ((PyRTPPPacketExtObject *)arg0)->pktxp;
+        if (pktxp == NULL) {
+            PyErr_SetString(PyExc_ValueError, "packet is no longer available");
+            return NULL;
+        }
+        ((PyRTPPPacketExtObject *)arg0)->pktxp = NULL;
+        rtpp_packetport_push(self->packetport, pktxp);
+        Py_RETURN_NONE;
+    }
+    if (!PyArg_ParseTuple(args, "OI", &dataobj, &port)) {
+        return NULL;
+    }
+    if (!PyBytes_Check(dataobj)) {
+        PyErr_SetString(PyExc_TypeError, "data must be bytes");
+        return NULL;
+    }
+    if (PyBytes_AsStringAndSize(dataobj, &data, &dlen) != 0) {
+        return NULL;
+    }
+    pktxp = PyRTPPPacketExt_from_bytes(data, dlen, port);
+    if (pktxp == NULL) {
+        return NULL;
+    }
+    rtpp_packetport_push(self->packetport, pktxp);
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+PyRTPPPacketPort_try_push(PyRTPPPacketPortObject *self, PyObject *args)
+{
+    struct rtp_packet_ext *pktxp;
+    PyObject *arg0, *dataobj;
+    char *data;
+    Py_ssize_t dlen;
+    unsigned int port;
+
+    if (PyTuple_Size(args) == 1) {
+        if (!PyArg_ParseTuple(args, "O", &arg0)) {
+            return (NULL);
+        }
+        if (!PyObject_TypeCheck(arg0, &PyRTPPPacketExtType)) {
+            PyErr_SetString(PyExc_TypeError,
+              "try_push(packet) expects an rtp.io.packet");
+            return (NULL);
+        }
+        pktxp = ((PyRTPPPacketExtObject *)arg0)->pktxp;
+        if (pktxp == NULL) {
+            PyErr_SetString(PyExc_ValueError, "packet is no longer available");
+            return (NULL);
+        }
+        if (rtpp_packetport_try_push(self->packetport, pktxp) != 0) {
+            PyErr_SetString(PyExc_BufferError, "packetport queue is full");
+            return (NULL);
+        }
+        ((PyRTPPPacketExtObject *)arg0)->pktxp = NULL;
+        Py_RETURN_NONE;
+    }
+    if (!PyArg_ParseTuple(args, "OI", &dataobj, &port)) {
+        return (NULL);
+    }
+    if (!PyBytes_Check(dataobj)) {
+        PyErr_SetString(PyExc_TypeError, "data must be bytes");
+        return (NULL);
+    }
+    if (PyBytes_AsStringAndSize(dataobj, &data, &dlen) != 0) {
+        return (NULL);
+    }
+    pktxp = PyRTPPPacketExt_from_bytes(data, dlen, port);
+    if (pktxp == NULL) {
+        return (NULL);
+    }
+    if (rtpp_packetport_try_push(self->packetport, pktxp) != 0) {
+        rtp_packet_ext_dtor(pktxp);
+        PyErr_SetString(PyExc_BufferError, "packetport queue is full");
+        return (NULL);
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+PyRTPPPacketPort_try_pop(PyRTPPPacketPortObject *self, PyObject *args)
+{
+    struct rtp_packet_ext *pktxp;
+
+    (void)args;
+    pktxp = rtpp_packetport_try_pop(self->packetport);
+    if (pktxp == NULL) {
+        Py_RETURN_NONE;
+    }
+    return PyRTPPPacketExt_FromRTPP(pktxp);
+}
+
+static PyObject *
+PyRTPPPacketPort_try_pop_many(PyRTPPPacketPortObject *self, PyObject *args)
+{
+    PyObject *ret;
+    size_t nitems;
+    Py_ssize_t i;
+    unsigned int max_items;
+
+    max_items = self->capacity;
+    if (!PyArg_ParseTuple(args, "|I", &max_items)) {
+        return (NULL);
+    }
+    if (max_items == 0 || max_items > self->capacity) {
+        PyErr_SetString(PyExc_ValueError, "max_items is out of range");
+        return (NULL);
+    }
+    nitems = rtpp_packetport_try_pop_many(self->packetport, self->pop_batch,
+      max_items);
+    ret = PyTuple_New((Py_ssize_t)nitems);
+    if (ret == NULL) {
+        for (i = 0; i < (Py_ssize_t)nitems; i++) {
+            rtp_packet_ext_dtor(self->pop_batch[i]);
+        }
+        return (NULL);
+    }
+    for (i = 0; i < (Py_ssize_t)nitems; i++) {
+        PyObject *pktxo;
+
+        pktxo = PyRTPPPacketExt_FromRTPP(self->pop_batch[i]);
+        if (pktxo == NULL) {
+            for (; i < (Py_ssize_t)nitems; i++) {
+                rtp_packet_ext_dtor(self->pop_batch[i]);
+            }
+            Py_DECREF(ret);
+            return (NULL);
+        }
+        PyTuple_SET_ITEM(ret, i, pktxo);
+    }
+    return (ret);
+}
+
+static int
+PyRTPPPacketExt_getbuffer(PyObject *obj, Py_buffer *view, int flags)
+{
+    PyRTPPPacketExtObject *self;
+
+    self = (PyRTPPPacketExtObject *)obj;
+    if (self->pktxp == NULL) {
+        PyErr_SetString(PyExc_BufferError, "packet is no longer available");
+        return (-1);
+    }
+    return PyBuffer_FillInfo(view, obj, (void *)self->pktxp->data,
+      (Py_ssize_t)self->pktxp->dlen, !rtpp_packet_ext_owns_data(self->pktxp),
+      flags);
+}
+
+static PyObject *
+PyRTPPPacketExt_get_port(PyRTPPPacketExtObject *self, void *closure)
+{
+
+    (void)closure;
+    return PyLong_FromUnsignedLong(self->pktxp->port);
+}
+
+static PyObject *
+PyRTPPPacketExt_get__data_ptr(PyRTPPPacketExtObject *self, void *closure)
+{
+
+    (void)closure;
+    return PyLong_FromVoidPtr((void *)self->pktxp->data);
+}
+
+static PyObject *
+PyRTPPPacketExt_get_rtime(PyRTPPPacketExtObject *self, void *closure)
+{
+    double wall, mono;
+
+    (void)closure;
+    wall = rtpp_packet_ext_get_rtime_wall(self->pktxp);
+    mono = rtpp_packet_ext_get_rtime_mono(self->pktxp);
+    return (Py_BuildValue("(dd)", wall, mono));
+}
+
+static int
+PyRTPPPacketExt_set_rtime(PyRTPPPacketExtObject *self, PyObject *value,
+  void *closure)
+{
+    PyObject *items;
+    PyObject *o0, *o1;
+    double wall, mono;
+
+    (void)closure;
+    if (value == NULL) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete rtime");
+        return (-1);
+    }
+    items = PySequence_Fast(value, "rtime must be a 2-sequence");
+    if (items == NULL) {
+        return (-1);
+    }
+    if (PySequence_Fast_GET_SIZE(items) != 2) {
+        Py_DECREF(items);
+        PyErr_SetString(PyExc_TypeError, "rtime must contain wall and mono");
+        return (-1);
+    }
+    o0 = PySequence_Fast_GET_ITEM(items, 0);
+    o1 = PySequence_Fast_GET_ITEM(items, 1);
+    wall = PyFloat_AsDouble(o0);
+    if (wall == -1.0 && PyErr_Occurred() != NULL) {
+        Py_DECREF(items);
+        return (-1);
+    }
+    mono = PyFloat_AsDouble(o1);
+    if (mono == -1.0 && PyErr_Occurred() != NULL) {
+        Py_DECREF(items);
+        return (-1);
+    }
+    Py_DECREF(items);
+    rtpp_packet_ext_set_rtime(self->pktxp, wall, mono);
+    return (0);
+}
+
+static PyObject *
+PyRTPPPacketExt_bytes(PyRTPPPacketExtObject *self, PyObject *args)
+{
+
+    (void)args;
+    return PyBytes_FromStringAndSize(self->pktxp->data,
+      (Py_ssize_t)self->pktxp->dlen);
+}
+
+static void
+PyRTPPPacketExt_dealloc(PyRTPPPacketExtObject *self)
+{
+    if (self->pktxp != NULL) {
+        rtp_packet_ext_dtor(self->pktxp);
+        self->pktxp = NULL;
+    }
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static int
+PyRTPPPacketExt_init(PyRTPPPacketExtObject *self, PyObject *args,
+  PyObject *kwds)
+{
+    static char *kwlist[] = {"data", "port", NULL};
+    PyObject *dataobj;
+    unsigned int port;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OI", kwlist, &dataobj,
+      &port)) {
+        return (-1);
+    }
+    if (self->pktxp != NULL) {
+        rtp_packet_ext_dtor(self->pktxp);
+        self->pktxp = NULL;
+    }
+    self->pktxp = PyRTPPPacketExt_from_ctor_arg(dataobj, port);
+    if (self->pktxp == NULL) {
+        return (-1);
+    }
+    return (0);
+}
+
+static PyGetSetDef PyRTPPPacketExt_getset[] = {
+    {"port", (getter)PyRTPPPacketExt_get_port, NULL,
+     "Packet port", NULL},
+    {"rtime", (getter)PyRTPPPacketExt_get_rtime,
+     (setter)PyRTPPPacketExt_set_rtime, "Packet receive time", NULL},
+    {"_data_ptr", (getter)PyRTPPPacketExt_get__data_ptr, NULL,
+     "Address of packet payload data", NULL},
+    {NULL}
+};
+
+static PyMethodDef PyRTPPPacketExt_methods[] = {
+    {"__bytes__", (PyCFunction)PyRTPPPacketExt_bytes, METH_NOARGS,
+     "Return packet payload as bytes."},
+    {NULL}
+};
+
+static PyBufferProcs PyRTPPPacketExt_as_buffer = {
+    .bf_getbuffer = PyRTPPPacketExt_getbuffer,
 };
 
 static struct RTPPSocket
@@ -200,9 +623,10 @@ static int PyRTPProxy_init(PyRTPProxyObject* self, PyObject* args, PyObject* kwd
     self->rp = RTPPInitializeParams;
     PyObject *modules_obj = NULL;
     PyObject *extra_args_obj = NULL;
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iiiisssOO", (char **)kwlist,
-            &self->rp.ttl, &self->rp.setup_ttl, &self->rp.port_min, &self->rp.port_max,
-            &self->rp.debug_level, &self->rp.rec_spool_dir, &self->rp.rec_final_dir,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iisiissOO", (char **)kwlist,
+            &self->rp.ttl, &self->rp.setup_ttl, &self->rp.debug_level,
+            &self->rp.port_min, &self->rp.port_max, &self->rp.rec_spool_dir,
+            &self->rp.rec_final_dir,
             &modules_obj, &extra_args_obj)) {
         goto e0;
     }
@@ -327,7 +751,46 @@ static void PyRTPProxy_dealloc(PyRTPProxyObject* self) {
     }
 }
 
+static void
+PyRTPPPacketPort_dealloc(PyRTPPPacketPortObject *self)
+{
+    PyMem_Free(self->pop_batch);
+    self->pop_batch = NULL;
+    if (self->packetport != NULL) {
+        rtpp_packetport_dtor(self->packetport);
+        self->packetport = NULL;
+    }
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyObject *
+PyRTPProxy_packetport_ctor(PyRTPProxyObject *self, PyObject *args,
+  PyObject *kwds)
+{
+    static char *kwlist[] = {"capacity", NULL};
+    struct rtpp_packetport *packetport;
+    unsigned int capacity;
+
+    (void)self;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "I", kwlist, &capacity)) {
+        return NULL;
+    }
+    if (capacity == 0) {
+        PyErr_SetString(PyExc_ValueError, "capacity must be greater than 0");
+        return NULL;
+    }
+    packetport = rtpp_packetport_ctor(capacity);
+    if (packetport == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "rtpp_packetport_ctor() failed");
+        return NULL;
+    }
+    return PyRTPPPacketPort_FromRTPP(packetport, capacity);
+}
+
 static PyMethodDef PyRTPProxy_methods[] = {
+    {"packetport_ctor", (PyCFunction)PyRTPProxy_packetport_ctor,
+     METH_VARARGS | METH_KEYWORDS,
+     "Create an rtpp_packetport wrapper."},
     {NULL}  // Sentinel
 };
 
@@ -340,6 +803,22 @@ static PyMemberDef PyRTPProxy_members[] = {
      READONLY, "RTPProxy command socket specifier"},
     {"rtpp_nsock_spec", T_OBJECT_EX, offsetof(PyRTPProxyObject, notify.py.spec_str),
      READONLY, "RTPProxy notification socket specifier"},
+    {NULL}
+};
+
+static PyMethodDef PyRTPPPacketPort_methods[] = {
+    {"address_ref", (PyCFunction)PyRTPPPacketPort_address_ref, METH_NOARGS,
+     "Return packetport address reference in RTQ form."},
+    {"next_in_port", (PyCFunction)PyRTPPPacketPort_next_in_port, METH_NOARGS,
+     "Allocate the next public packetport number."},
+    {"push", (PyCFunction)PyRTPPPacketPort_push, METH_VARARGS,
+     "Push bytes plus port, or consume an rtp.io.packet."},
+    {"try_push", (PyCFunction)PyRTPPPacketPort_try_push, METH_VARARGS,
+     "Try to push bytes plus port, or a packet, without consuming it on failure."},
+    {"try_pop", (PyCFunction)PyRTPPPacketPort_try_pop, METH_NOARGS,
+     "Try to pop a packet payload from the packetport."},
+    {"try_pop_many", (PyCFunction)PyRTPPPacketPort_try_pop_many, METH_VARARGS,
+     "Try to pop up to max_items packet payloads from the packetport."},
     {NULL}
 };
 
@@ -357,6 +836,32 @@ static PyTypeObject PyRTPProxyType = {
     .tp_members = PyRTPProxy_members,
 };
 
+static PyTypeObject PyRTPPPacketPortType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = MODULE_NAME_STR ".packetport",
+    .tp_doc = "Wrapper for rtpp_packetport.",
+    .tp_basicsize = sizeof(PyRTPPPacketPortObject),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_dealloc = (destructor)PyRTPPPacketPort_dealloc,
+    .tp_methods = PyRTPPPacketPort_methods,
+};
+
+static PyTypeObject PyRTPPPacketExtType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = MODULE_NAME_STR ".packet",
+    .tp_doc = "Wrapper for rtp_packet_ext.",
+    .tp_basicsize = sizeof(PyRTPPPacketExtObject),
+    .tp_itemsize = 0,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_new = PyType_GenericNew,
+    .tp_init = (initproc)PyRTPPPacketExt_init,
+    .tp_dealloc = (destructor)PyRTPPPacketExt_dealloc,
+    .tp_methods = PyRTPPPacketExt_methods,
+    .tp_getset = PyRTPPPacketExt_getset,
+    .tp_as_buffer = &PyRTPPPacketExt_as_buffer,
+};
+
 static struct PyModuleDef RTPProxy_module = {
     PyModuleDef_HEAD_INIT,
     .m_name = MODULE_NAME_STR,
@@ -369,6 +874,10 @@ PyMODINIT_FUNC PY_INIT_FUNC(void) {
     PyObject* module;
     if (PyType_Ready(&PyRTPProxyType) < 0)
         return NULL;
+    if (PyType_Ready(&PyRTPPPacketPortType) < 0)
+        return NULL;
+    if (PyType_Ready(&PyRTPPPacketExtType) < 0)
+        return NULL;
 
     module = PyModule_Create(&RTPProxy_module);
     if (module == NULL)
@@ -376,6 +885,10 @@ PyMODINIT_FUNC PY_INIT_FUNC(void) {
 
     Py_INCREF(&PyRTPProxyType);
     PyModule_AddObject(module, CLS_NAME_STR, (PyObject*)&PyRTPProxyType);
+    Py_INCREF(&PyRTPPPacketPortType);
+    PyModule_AddObject(module, "packetport", (PyObject *)&PyRTPPPacketPortType);
+    Py_INCREF(&PyRTPPPacketExtType);
+    PyModule_AddObject(module, "packet", (PyObject *)&PyRTPPPacketExtType);
 
     return module;
 }
