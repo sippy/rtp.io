@@ -19,7 +19,7 @@ else
   GMAKE=make
 fi
 
-CFLAGS_opt="-O1 -pipe -flto"
+CFLAGS_opt="-O2 -g3 -pipe -flto"
 CFLAGS="-O0 -g3 -pipe -flto"
 if [ ! -z "${ARCH_CFLAGS}" ]
 then
@@ -69,7 +69,7 @@ then
   fi
 fi
 
-if [ -z "${NO_BUILD_OSSL}" ]
+if [ -z "${NO_BUILD_OSSL}" -o ! -e "${BDIR}/lib/libssl.a" ]
 then
   cd ${MYDIR}/../openssl
   CFLAGS="${CFLAGS_opt}" LDFLAGS="${LDFLAGS_opt}" ./Configure ${OPENSSL_CONFIGURE_ARGS} \
@@ -84,7 +84,7 @@ CFLAGS="${CFLAGS} -I${BDIR}/include"
 LDFLAGS_opt="${LDFLAGS_opt} -L${BDIR}/lib"
 LDFLAGS="${LDFLAGS} -L${BDIR}/lib"
 
-if [ -z "${NO_BUILD_SRTP}" ]
+if [ -z "${NO_BUILD_SRTP}" -o ! -e "${BDIR}/lib/libsrtp2.a" ]
 then
   cd ${MYDIR}/../libsrtp
   if [ ! -z "${SAVE_SPACE}" ]
@@ -113,14 +113,14 @@ then
   rm -rf ${MYDIR}/../libsrtp
 fi
 
-CFLAGS="${CFLAGS}" LDFLAGS="${LDFLAGS}" ./configure --enable-static-crypto \
+CFLAGS="${CFLAGS_opt}" LDFLAGS="${LDFLAGS_opt}" ./configure --enable-static-crypto \
  --enable-librtpproxy --enable-lto --disable-noinst --disable-debug
 if ! grep -q '^#define ENABLE_SRTP2 1' src/config.h
 then
   grep -C 200 lsrtp2 config.log
   exit 1
 fi
-for dir in libexecinfo libucl libre external/libelperiodic/src libxxHash modules
+for dir in libexecinfo libucl libre external/libelperiodic/src libxxHash modules libRTQueue
 do
   make -C ${dir} all
 done
