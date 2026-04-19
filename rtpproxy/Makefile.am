@@ -21,7 +21,7 @@ if BUILD_CRYPTO
 SUB_LIBRE=	libre
 endif
 
-SUBDIRS=	libexecinfo libucl libxxHash $(SUB_LIBRE) makeann $(SUBD_MOD) \
+SUBDIRS=	libexecinfo libucl libxxHash libRTQueue $(SUB_LIBRE) makeann $(SUBD_MOD) \
   $(SUBD_ELP) src $(SUBD_UDCNT) \
   $(SUBD_EAUD) ${SUBD_DOCS}
 
@@ -35,6 +35,7 @@ EXTRA_DIST=	README.remote doc rpm/rtpproxy.init rpm/rtpproxy.spec \
 
 if ENABLE_LIBRTPPROXY
 include_HEADERS = src/librtpproxy.h
+nobase_include_HEADERS = src/librtpproxy/packetport.h src/librtpproxy/packet_ext.h
 endif
 
 if BUILD_DOCS

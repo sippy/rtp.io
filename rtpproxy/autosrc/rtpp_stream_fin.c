@@ -15,6 +15,10 @@ static void rtpp_stream_get_actor_fin(void *pub) {
     fprintf(stderr, "Method rtpp_stream@%p::get_actor (rtpp_stream_get_actor) is invoked after destruction\x0a", pub);
     RTPP_AUTOTRAP();
 }
+static void rtpp_stream_get_packetport_fin(void *pub) {
+    fprintf(stderr, "Method rtpp_stream@%p::get_packetport (rtpp_stream_get_packetport) is invoked after destruction\x0a", pub);
+    RTPP_AUTOTRAP();
+}
 static void rtpp_stream_get_proto_fin(void *pub) {
     fprintf(stderr, "Method rtpp_stream@%p::get_proto (rtpp_stream_get_proto) is invoked after destruction\x0a", pub);
     RTPP_AUTOTRAP();
@@ -67,6 +71,10 @@ static void rtpp_stream_latch_setmode_fin(void *pub) {
     fprintf(stderr, "Method rtpp_stream@%p::latch_setmode (rtpp_stream_latch_setmode) is invoked after destruction\x0a", pub);
     RTPP_AUTOTRAP();
 }
+static void rtpp_stream_link_sender_fin(void *pub) {
+    fprintf(stderr, "Method rtpp_stream@%p::link_sender (rtpp_stream_link_sender) is invoked after destruction\x0a", pub);
+    RTPP_AUTOTRAP();
+}
 static void rtpp_stream_locklatch_fin(void *pub) {
     fprintf(stderr, "Method rtpp_stream@%p::locklatch (rtpp_stream_locklatch) is invoked after destruction\x0a", pub);
     RTPP_AUTOTRAP();
@@ -91,8 +99,16 @@ static void rtpp_stream_send_pkt_to_fin(void *pub) {
     fprintf(stderr, "Method rtpp_stream@%p::send_pkt_to (rtpp_stream_send_pkt_to) is invoked after destruction\x0a", pub);
     RTPP_AUTOTRAP();
 }
+static void rtpp_stream_set_packetport_fin(void *pub) {
+    fprintf(stderr, "Method rtpp_stream@%p::set_packetport (rtpp_stream_set_packetport) is invoked after destruction\x0a", pub);
+    RTPP_AUTOTRAP();
+}
 static void rtpp_stream_set_skt_fin(void *pub) {
     fprintf(stderr, "Method rtpp_stream@%p::set_skt (rtpp_stream_set_skt) is invoked after destruction\x0a", pub);
+    RTPP_AUTOTRAP();
+}
+static void rtpp_stream_unreg_fin(void *pub) {
+    fprintf(stderr, "Method rtpp_stream@%p::unreg (rtpp_stream_unreg) is invoked after destruction\x0a", pub);
     RTPP_AUTOTRAP();
 }
 static void rtpp_stream_update_skt_fin(void *pub) {
@@ -102,6 +118,7 @@ static void rtpp_stream_update_skt_fin(void *pub) {
 static const struct rtpp_stream_smethods rtpp_stream_smethods_fin = {
     .finish_playback = (rtpp_stream_finish_playback_t)&rtpp_stream_finish_playback_fin,
     .get_actor = (rtpp_stream_get_actor_t)&rtpp_stream_get_actor_fin,
+    .get_packetport = (rtpp_stream_get_packetport_t)&rtpp_stream_get_packetport_fin,
     .get_proto = (rtpp_stream_get_proto_t)&rtpp_stream_get_proto_fin,
     .get_rem_addr = (rtpp_stream_get_rem_addr_t)&rtpp_stream_get_rem_addr_fin,
     .get_sender = (rtpp_stream_get_sender_t)&rtpp_stream_get_sender_fin,
@@ -115,18 +132,22 @@ static const struct rtpp_stream_smethods rtpp_stream_smethods_fin = {
     .latch = (rtpp_stream_latch_t)&rtpp_stream_latch_fin,
     .latch_getmode = (rtpp_stream_latch_getmode_t)&rtpp_stream_latch_getmode_fin,
     .latch_setmode = (rtpp_stream_latch_setmode_t)&rtpp_stream_latch_setmode_fin,
+    .link_sender = (rtpp_stream_link_sender_t)&rtpp_stream_link_sender_fin,
     .locklatch = (rtpp_stream_locklatch_t)&rtpp_stream_locklatch_fin,
     .prefill_addr = (rtpp_stream_prefill_addr_t)&rtpp_stream_prefill_addr_fin,
     .reg_onhold = (rtpp_stream_reg_onhold_t)&rtpp_stream_reg_onhold_fin,
     .rx = (rtpp_stream_rx_t)&rtpp_stream_rx_fin,
     .send_pkt = (rtpp_stream_send_pkt_t)&rtpp_stream_send_pkt_fin,
     .send_pkt_to = (rtpp_stream_send_pkt_to_t)&rtpp_stream_send_pkt_to_fin,
+    .set_packetport = (rtpp_stream_set_packetport_t)&rtpp_stream_set_packetport_fin,
     .set_skt = (rtpp_stream_set_skt_t)&rtpp_stream_set_skt_fin,
+    .unreg = (rtpp_stream_unreg_t)&rtpp_stream_unreg_fin,
     .update_skt = (rtpp_stream_update_skt_t)&rtpp_stream_update_skt_fin,
 };
 void rtpp_stream_fin(struct rtpp_stream *pub) {
     RTPP_DBG_ASSERT(pub->smethods->finish_playback != (rtpp_stream_finish_playback_t)NULL);
     RTPP_DBG_ASSERT(pub->smethods->get_actor != (rtpp_stream_get_actor_t)NULL);
+    RTPP_DBG_ASSERT(pub->smethods->get_packetport != (rtpp_stream_get_packetport_t)NULL);
     RTPP_DBG_ASSERT(pub->smethods->get_proto != (rtpp_stream_get_proto_t)NULL);
     RTPP_DBG_ASSERT(pub->smethods->get_rem_addr != (rtpp_stream_get_rem_addr_t)NULL);
     RTPP_DBG_ASSERT(pub->smethods->get_sender != (rtpp_stream_get_sender_t)NULL);
@@ -140,13 +161,16 @@ void rtpp_stream_fin(struct rtpp_stream *pub) {
     RTPP_DBG_ASSERT(pub->smethods->latch != (rtpp_stream_latch_t)NULL);
     RTPP_DBG_ASSERT(pub->smethods->latch_getmode != (rtpp_stream_latch_getmode_t)NULL);
     RTPP_DBG_ASSERT(pub->smethods->latch_setmode != (rtpp_stream_latch_setmode_t)NULL);
+    RTPP_DBG_ASSERT(pub->smethods->link_sender != (rtpp_stream_link_sender_t)NULL);
     RTPP_DBG_ASSERT(pub->smethods->locklatch != (rtpp_stream_locklatch_t)NULL);
     RTPP_DBG_ASSERT(pub->smethods->prefill_addr != (rtpp_stream_prefill_addr_t)NULL);
     RTPP_DBG_ASSERT(pub->smethods->reg_onhold != (rtpp_stream_reg_onhold_t)NULL);
     RTPP_DBG_ASSERT(pub->smethods->rx != (rtpp_stream_rx_t)NULL);
     RTPP_DBG_ASSERT(pub->smethods->send_pkt != (rtpp_stream_send_pkt_t)NULL);
     RTPP_DBG_ASSERT(pub->smethods->send_pkt_to != (rtpp_stream_send_pkt_to_t)NULL);
+    RTPP_DBG_ASSERT(pub->smethods->set_packetport != (rtpp_stream_set_packetport_t)NULL);
     RTPP_DBG_ASSERT(pub->smethods->set_skt != (rtpp_stream_set_skt_t)NULL);
+    RTPP_DBG_ASSERT(pub->smethods->unreg != (rtpp_stream_unreg_t)NULL);
     RTPP_DBG_ASSERT(pub->smethods->update_skt != (rtpp_stream_update_skt_t)NULL);
     RTPP_DBG_ASSERT(pub->smethods != &rtpp_stream_smethods_fin &&
       pub->smethods != NULL);
@@ -176,6 +200,7 @@ rtpp_stream_fintest()
     static const struct rtpp_stream_smethods dummy = {
         .finish_playback = (rtpp_stream_finish_playback_t)((void *)0x1),
         .get_actor = (rtpp_stream_get_actor_t)((void *)0x1),
+        .get_packetport = (rtpp_stream_get_packetport_t)((void *)0x1),
         .get_proto = (rtpp_stream_get_proto_t)((void *)0x1),
         .get_rem_addr = (rtpp_stream_get_rem_addr_t)((void *)0x1),
         .get_sender = (rtpp_stream_get_sender_t)((void *)0x1),
@@ -189,13 +214,16 @@ rtpp_stream_fintest()
         .latch = (rtpp_stream_latch_t)((void *)0x1),
         .latch_getmode = (rtpp_stream_latch_getmode_t)((void *)0x1),
         .latch_setmode = (rtpp_stream_latch_setmode_t)((void *)0x1),
+        .link_sender = (rtpp_stream_link_sender_t)((void *)0x1),
         .locklatch = (rtpp_stream_locklatch_t)((void *)0x1),
         .prefill_addr = (rtpp_stream_prefill_addr_t)((void *)0x1),
         .reg_onhold = (rtpp_stream_reg_onhold_t)((void *)0x1),
         .rx = (rtpp_stream_rx_t)((void *)0x1),
         .send_pkt = (rtpp_stream_send_pkt_t)((void *)0x1),
         .send_pkt_to = (rtpp_stream_send_pkt_to_t)((void *)0x1),
+        .set_packetport = (rtpp_stream_set_packetport_t)((void *)0x1),
         .set_skt = (rtpp_stream_set_skt_t)((void *)0x1),
+        .unreg = (rtpp_stream_unreg_t)((void *)0x1),
         .update_skt = (rtpp_stream_update_skt_t)((void *)0x1),
     };
     tp->pub.smethods = &dummy;
@@ -204,6 +232,7 @@ rtpp_stream_fintest()
     RTPP_OBJ_DECREF(&(tp->pub));
     CALL_TFIN(&tp->pub, finish_playback);
     CALL_TFIN(&tp->pub, get_actor);
+    CALL_TFIN(&tp->pub, get_packetport);
     CALL_TFIN(&tp->pub, get_proto);
     CALL_TFIN(&tp->pub, get_rem_addr);
     CALL_TFIN(&tp->pub, get_sender);
@@ -217,15 +246,18 @@ rtpp_stream_fintest()
     CALL_TFIN(&tp->pub, latch);
     CALL_TFIN(&tp->pub, latch_getmode);
     CALL_TFIN(&tp->pub, latch_setmode);
+    CALL_TFIN(&tp->pub, link_sender);
     CALL_TFIN(&tp->pub, locklatch);
     CALL_TFIN(&tp->pub, prefill_addr);
     CALL_TFIN(&tp->pub, reg_onhold);
     CALL_TFIN(&tp->pub, rx);
     CALL_TFIN(&tp->pub, send_pkt);
     CALL_TFIN(&tp->pub, send_pkt_to);
+    CALL_TFIN(&tp->pub, set_packetport);
     CALL_TFIN(&tp->pub, set_skt);
+    CALL_TFIN(&tp->pub, unreg);
     CALL_TFIN(&tp->pub, update_skt);
-    assert((_naborts - naborts_s) == 23);
+    assert((_naborts - naborts_s) == 27);
 }
 DATA_SET(rtpp_fintests, rtpp_stream_fintest);
 #endif /* RTPP_FINTEST */
