@@ -62,7 +62,7 @@ jobs:
           compiler: 'clang-20'
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: 'recursive'
 
@@ -78,7 +78,7 @@ jobs:
 
     - name: Cache apt-get packages
       if: endsWith(matrix.compiler, '-cross') == 0
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: /var/cache/apt/archives
         key: cleanbuild-${{ matrix.os }}-apt-get-${{ github.run_id }}
@@ -91,7 +91,7 @@ jobs:
 
     - name: Set up Python
       if: endsWith(matrix.compiler, '-cross') == 0
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: 3.9
 
@@ -105,8 +105,8 @@ jobs:
     name: Build Packages
     needs: [LoadJobs_conf, FullBuild]
     uses: sippy/cimagic/.github/workflows/BuildDPKGs.yml@v2
-    if: always() && needs.LoadJobs_conf.outputs.do_BuildPackages == 'true' &&
-        (needs.LoadJobs_conf.outputs.do_FullBuild != 'true' || needs.FullBuild.result == 'success')
+    if: ${{ !cancelled() && (success() || failure()) && needs.LoadJobs_conf.outputs.do_BuildPackages == 'true' &&
+        (needs.LoadJobs_conf.outputs.do_FullBuild != 'true' || needs.FullBuild.result == 'success') }}
     with:
       apt_depends: pkg-config libssl-dev libbcg729-dev libgsm1-dev libsndfile1-dev libunwind-dev libsrtp2-dev libsystemd-dev systemd procps
       test_dpkgs_script: ./scripts/do-dpkg-test.sh
@@ -114,8 +114,8 @@ jobs:
   FullBuild:
     name: Full Build
     needs: [LoadJobs_conf, MinBuild]
-    if: always() && needs.LoadJobs_conf.outputs.do_FullBuild == 'true' &&
-        (needs.LoadJobs_conf.outputs.do_MinBuild != 'true' || needs.MinBuild.result == 'success')
+    if: ${{ !cancelled() && (success() || failure()) && needs.LoadJobs_conf.outputs.do_FullBuild == 'true' &&
+        (needs.LoadJobs_conf.outputs.do_MinBuild != 'true' || needs.MinBuild.result == 'success') }}
     # The type of runner that the job will run on
     runs-on: ubuntu-${{ matrix.os }}
     env:
@@ -142,11 +142,12 @@ jobs:
         - os: 24.04
           compiler: 'clang-17'
         - os: 24.04
-          compiler: 'clang-18'
-        - os: 24.04
           compiler: 'clang-19'
+        - os: 24.04
+          compiler: 'clang-20'
+
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: 'recursive'
 
@@ -162,7 +163,7 @@ jobs:
 
     - name: Cache apt-get packages
       if: endsWith(matrix.compiler, '-cross') == 0
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: /var/cache/apt/archives
         key: depsbuild-${{ matrix.os }}-apt-get-${{ github.run_id }}
@@ -175,7 +176,7 @@ jobs:
 
     - name: Set up Python
       if: endsWith(matrix.compiler, '-cross') == 0
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: 3.9
 
@@ -188,8 +189,8 @@ jobs:
   FuncTest:
     name: Functional Testing    
     needs: [LoadJobs_conf, FullBuild]
-    if: always() && needs.LoadJobs_conf.outputs.do_FuncTest == 'true' &&
-        (needs.LoadJobs_conf.outputs.do_FullBuild != 'true' || needs.FullBuild.result == 'success')
+    if: ${{ !cancelled() && (success() || failure()) && needs.LoadJobs_conf.outputs.do_FuncTest == 'true' &&
+        (needs.LoadJobs_conf.outputs.do_FullBuild != 'true' || needs.FullBuild.result == 'success') }}
     # The type of runner that the job will run on
     runs-on: ubuntu-${{ matrix.os }}
     env:
@@ -216,12 +217,12 @@ jobs:
         - os: 24.04
           compiler: 'clang-17'
         - os: 24.04
-          compiler: 'clang-18'
-        - os: 24.04
           compiler: 'clang-19'
+        - os: 24.04
+          compiler: 'clang-20'
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: 'recursive'
 
@@ -231,7 +232,7 @@ jobs:
         sudo chmod u+s "$(command -v tar)"
 
     - name: Cache apt-get packages
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: /var/cache/apt/archives
         key: functesting-${{ matrix.os }}-apt-get-${{ github.run_id }}
@@ -243,7 +244,7 @@ jobs:
       run: scripts/ft-apt-get-update.sh
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: 3.9
 
@@ -262,8 +263,8 @@ jobs:
   Glitching:
     name: Glitch Injection
     needs: [LoadJobs_conf, FuncTest]
-    if: always() && needs.LoadJobs_conf.outputs.do_Glitch == 'true' &&
-        (needs.LoadJobs_conf.outputs.do_FuncTest != 'true' || needs.FuncTest.result == 'success')
+    if: ${{ !cancelled() && (success() || failure()) && needs.LoadJobs_conf.outputs.do_Glitch == 'true' &&
+        (needs.LoadJobs_conf.outputs.do_FuncTest != 'true' || needs.FuncTest.result == 'success') }}
     # The type of runner that the job will run on
     runs-on: ubuntu-${{ matrix.os }}
     env:
@@ -290,12 +291,12 @@ jobs:
         - os: 24.04
           compiler: 'clang-17'
         - os: 24.04
-          compiler: 'clang-18'
-        - os: 24.04
           compiler: 'clang-19'
+        - os: 24.04
+          compiler: 'clang-20'
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: 'recursive'
 
@@ -305,7 +306,7 @@ jobs:
         sudo chmod u+s "$(command -v tar)"
 
     - name: Cache apt-get packages
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: /var/cache/apt/archives
         key: glitching-${{ matrix.os }}-apt-get-${{ github.run_id }}
@@ -317,7 +318,7 @@ jobs:
       run: scripts/ft-apt-get-update.sh
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: 3.9
 
@@ -336,8 +337,8 @@ jobs:
   Fuzzing:
     name: Fuzz with OSS-Fuzz
     needs: [LoadJobs_conf, Glitching]
-    if: always() && needs.LoadJobs_conf.outputs.do_Fuzzing == 'true' &&
-        (needs.LoadJobs_conf.outputs.do_Glitch != 'true' || needs.Glitching.result == 'success')
+    if: ${{ !cancelled() && (success() || failure()) && needs.LoadJobs_conf.outputs.do_Fuzzing == 'true' &&
+        (needs.LoadJobs_conf.outputs.do_Glitch != 'true' || needs.Glitching.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       security-events: write
@@ -346,7 +347,7 @@ jobs:
       matrix:
         sanitizer: [address, undefined, memory, coverage]
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: 'recursive'
     - name: Build Fuzzers (${{ matrix.sanitizer }})
@@ -386,9 +387,9 @@ jobs:
   Docker:
     name: Build&Push to DockerHub
     needs: [LoadJobs_conf, Fuzzing]
-    if: always() && needs.LoadJobs_conf.outputs.do_Docker == 'true' &&
+    if: ${{ !cancelled() && (success() || failure()) && needs.LoadJobs_conf.outputs.do_Docker == 'true' &&
         (needs.LoadJobs_conf.outputs.do_Fuzzing != 'true' || needs.Fuzzing.result == 'success') &&
-        (github.event_name == 'push' || github.event_name == 'pull_request')
+        (github.event_name == 'push' || github.event_name == 'pull_request') }}
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -445,28 +446,28 @@ jobs:
         done
 
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         submodules: 'recursive'
 
     - name: Set up QEMU
       id: qemu
-      uses: docker/setup-qemu-action@v3
+      uses: docker/setup-qemu-action@v4
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@v4
       with:
         driver-opts: network=host
 
     - name: Log in to Docker Hub
       if: env.DOCKER_RW == 'true'
-      uses: docker/login-action@v3
+      uses: docker/login-action@v4
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
     - name: Login to GitHub Container Registry
-      uses: docker/login-action@v3
+      uses: docker/login-action@v4
       with:
         registry: ghcr.io
         username: ${{ github.repository_owner }}
@@ -519,7 +520,7 @@ jobs:
 
     - name: Extract metadata (tags, labels) for Docker
       id: meta_dkr
-      uses: docker/metadata-action@v5
+      uses: docker/metadata-action@v6
       with:
         images: ${{ env.DOCKER_REPO }}
         tags: |
@@ -533,7 +534,7 @@ jobs:
 
     - name: Extract metadata (tags, labels) for GHCR
       id: meta_ghcr
-      uses: docker/metadata-action@v5
+      uses: docker/metadata-action@v6
       with:
         images: ${{ env.GHCR_REPO }}
         tags: |
@@ -547,7 +548,7 @@ jobs:
 
     - name: Build Docker image
       if: env.DOCKER_RW == 'true'
-      uses: docker/build-push-action@v6
+      uses: docker/build-push-action@v7
       env:
         DOCKER_BUILD_SUMMARY: false
         DOCKER_BUILD_RECORD_UPLOAD: false
@@ -571,7 +572,7 @@ jobs:
 
     - name: Build Docker image (PR)
       if: env.DOCKER_RW != 'true'
-      uses: docker/build-push-action@v6
+      uses: docker/build-push-action@v7
       env:
         DOCKER_BUILD_SUMMARY: false
         DOCKER_BUILD_RECORD_UPLOAD: false
@@ -594,7 +595,7 @@ jobs:
 
     - name: Export ccache
       if: env.DOCKER_RW == 'true'
-      uses: docker/build-push-action@v6
+      uses: docker/build-push-action@v7
       env:
         DOCKER_BUILD_SUMMARY: false
         DOCKER_BUILD_RECORD_UPLOAD: false
@@ -607,7 +608,7 @@ jobs:
 
     - name: Push Docker image
       if: env.DOCKER_RW == 'true'
-      uses: docker/build-push-action@v6
+      uses: docker/build-push-action@v7
       env:
         DOCKER_BUILD_SUMMARY: false
         DOCKER_BUILD_RECORD_UPLOAD: false
