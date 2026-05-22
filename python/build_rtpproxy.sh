@@ -19,8 +19,8 @@ else
   GMAKE=make
 fi
 
-CFLAGS_opt="-O2 -g3 -pipe -flto"
-CFLAGS="-O0 -g3 -pipe -flto"
+CFLAGS_opt="${CFLAGS_opt:-"-O2 -g3 -pipe -flto"}"
+CFLAGS="${CFLAGS:-"-O0 -g3 -pipe -flto"}"
 if [ ! -z "${ARCH_CFLAGS}" ]
 then
   CFLAGS_opt="${CFLAGS_opt} ${ARCH_CFLAGS}"
