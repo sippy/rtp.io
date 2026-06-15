@@ -33,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13']
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
         compiler: ['gcc', 'clang']
         os: [ubuntu]
 
@@ -82,7 +82,7 @@ jobs:
     permissions:
       packages: write
     needs: [build_test_python]
-    uses: sippy/cimagic/.github/workflows/BuildPythonWheels.yml@v2
+    uses: sippy/cimagic/.github/workflows/BuildPythonWheels.yml@v3
     with:
       maximize_space: true
 
@@ -110,7 +110,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v6
       with:
-        python-version: '3.12'
+        python-version: '3.14'
 
     - name: Install dependencies
       run: |
@@ -140,6 +140,6 @@ jobs:
     needs: publish_all_wheels
     permissions:
       contents: write
-    uses: sippy/cimagic/.github/workflows/RollReleaseDraft.yml@v2
+    uses: sippy/cimagic/.github/workflows/RollReleaseDraft.yml@v3
     with:
       submodules_recursive: false
