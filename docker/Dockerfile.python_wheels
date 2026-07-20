@@ -22,7 +22,7 @@ ENV CACHE_ROOT="${CACHE_HOME}/.cache"
 ENV TROOT="/tmp/build_cache_root"
 ENV PIPCACHE_DIR="${CACHE_ROOT}/pip"
 
-RUN dnf install -y perl perl-core clang lld llvm
+RUN dnf install -y perl perl-core clang lld llvm glibc-devel
 RUN dnf install -y pv || true
 RUN dnf clean -y all
 
