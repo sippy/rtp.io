@@ -57,8 +57,8 @@ then
   then
     ARCH="`dpkg --print-architecture`"
   fi
-  if [ "${ARCH}" = "i386" ]
-  then
+  case "${ARCH}" in
+  i386 | i486 | i586 | i686)
     OPENSSL_CONFIGURE_ARGS="linux-x86"
     if [ -z "${SRTP_LIBS}" ]
     then
@@ -66,7 +66,8 @@ then
     else
       export LIB_CRYPTO_STATIC="-l:libcrypto.a -lpthread ${SRTP_LIBS}"
     fi
-  fi
+    ;;
+  esac
 fi
 
 if [ -z "${NO_BUILD_OSSL}" -o ! -e "${BDIR}/lib/libssl.a" ]
