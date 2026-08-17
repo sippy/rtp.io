@@ -50,13 +50,17 @@ fi
 
 if [ -z "${OPENSSL_CONFIGURE_ARGS}" ]
 then
-  if which rpm > /dev/null
+  ARCH="${RTPPROXY_BUILD_ARCH}"
+  if [ -z "${ARCH}" ]
   then
-    ARCH="`rpm --eval '%{_arch}'`"
-  fi
-  if which dpkg > /dev/null
-  then
-    ARCH="`dpkg --print-architecture`"
+    if which rpm > /dev/null
+    then
+      ARCH="`rpm --eval '%{_arch}'`"
+    fi
+    if which dpkg > /dev/null
+    then
+      ARCH="`dpkg --print-architecture`"
+    fi
   fi
   case "${ARCH}" in
   i386 | i486 | i586 | i686)
