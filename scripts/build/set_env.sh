@@ -31,6 +31,10 @@ platformopts() {
     echo "CCACHE_MAXSIZE=40M"
     ;;
   esac
+  if [ "${TARGETPLATFORM}" = "linux/386" ]
+  then
+    echo "RTPPROXY_BUILD_ARCH=i386"
+  fi
   if [ -e /opt/rh/gcc-toolset-14/root/usr/lib/gcc/i686-redhat-linux/14/libatomic.a ]
   then
     echo "SRTP_LIBS=-L/opt/rh/gcc-toolset-14/root/usr/lib/gcc/i686-redhat-linux/14 -l:libatomic.a"
