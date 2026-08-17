@@ -1,6 +1,7 @@
 #!/bin/sh
 
 set -e
+set -x
 
 _SELF="`realpath "${0}"`"
 MYDIR="`dirname ${_SELF}`"
